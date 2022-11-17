@@ -254,6 +254,13 @@ var (
 
 var databases = []string{MYSQL, POSTGRES, SQLITE}
 var levels = []string{NO_TRANSACTION, READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE}
+var levelInt = map[string]int{
+	NO_TRANSACTION:   0,
+	READ_UNCOMMITTED: 1,
+	READ_COMMITTED:   2,
+	REPEATABLE_READ:  3,
+	SERIALIZABLE:     4,
+}
 
 func openDB(database string) (*sql.DB, error) {
 	switch database {
@@ -340,12 +347,21 @@ func genSeq(m, n int) []string {
 	return seq
 }
 
+type query struct {
+	Query   string
+	Want    *sql.NullInt64
+	WantOK  *sql.NullInt64
+	WantNG  *sql.NullInt64
+	WantErr error
+}
+
 func Test(t *testing.T) {
 	type test struct {
 		database   string
 		level      string
 		name       string
-		txs        [][]transactonstest.Query
+		txs        [][]query
+		threshold  map[string]string
 		wantStarts map[string][]string
 		wantEnds   map[string][]string
 		skip       bool
@@ -362,16 +378,11 @@ func Test(t *testing.T) {
 					database: database,
 					level:    level,
 					name:     "dirty write",
-					txs: [][]transactonstest.Query{
+					txs: [][]query{
 						{
 							{Query: startTransaction(database, level)},
 							{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-							{Query: "SELECT value FROM foo WHERE id = 1", Want: func(l string) *sql.NullInt64 {
-								if l == NO_TRANSACTION {
-									return newNullInt(200)
-								}
-								return newNullInt(20)
-							}(level)},
+							{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(20), WantNG: newNullInt(200)},
 							{Query: rollback(level)},
 						},
 						{
@@ -380,6 +391,7 @@ func Test(t *testing.T) {
 							{Query: rollback(level)},
 						},
 					},
+					threshold: map[string]string{"*": READ_UNCOMMITTED},
 					wantStarts: map[string][]string{
 						NO_TRANSACTION: genSeq(4, 3),
 						"*":            {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
@@ -397,37 +409,27 @@ func Test(t *testing.T) {
 					database: database,
 					level:    level,
 					name:     "dirty read",
-					txs: [][]transactonstest.Query{
+					txs: [][]query{
 						{
 							{Query: startTransaction(database, level)},
 							{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-							{Query: commit(level)},
+							{Query: rollback(level)},
 						},
 						{
 							{Query: startTransaction(database, level)},
-							{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string, l string) *sql.NullInt64 {
-								if l == NO_TRANSACTION {
-									return newNullInt(20)
-								}
-								if d == POSTGRES {
-									return newNullInt(2) // postgres's READ UNCOMMITTED is READ COMMITTED, so no dirty read
-								}
-								if d == SQLITE {
-									return newNullInt(2) // no dirty read ?
-								}
-
-								if l == READ_UNCOMMITTED || l == SERIALIZABLE {
-									return newNullInt(20) // dirty read
-								}
-								return newNullInt(2) // no dirty read
-							}(database, level)},
+							{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(2), WantNG: newNullInt(20)},
 							{Query: rollback(level)},
 						},
 					},
+					threshold: map[string]string{
+						"*":      READ_COMMITTED,
+						POSTGRES: READ_UNCOMMITTED,
+					},
 					wantStarts: map[string][]string{"*": genSeq(3, 3)},
 					wantEnds: map[string][]string{
-						NO_TRANSACTION:             genSeq(3, 3),
-						SQLITE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}, // tx0:COMMIT will be locked ?
+						NO_TRANSACTION: genSeq(3, 3),
+						// 変な挙動だったのがなんか急に起こらなくなった
+						// SQLITE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}, // tx0:COMMIT will be locked ?
 						MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 						"*":                        genSeq(3, 3),
 					},
@@ -443,7 +445,7 @@ func Test(t *testing.T) {
 					database: database,
 					level:    level,
 					name:     "fuzzy read",
-					txs: [][]transactonstest.Query{
+					txs: [][]query{
 						{
 							{Query: "SELECT 1"},
 							{Query: "SELECT 1"},
@@ -452,15 +454,11 @@ func Test(t *testing.T) {
 						{
 							{Query: startTransaction(database, level)},
 							{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
-							{Query: "SELECT value FROM foo WHERE id = 1", Want: func(l string) *sql.NullInt64 {
-								if l == NO_TRANSACTION || l == READ_UNCOMMITTED || l == READ_COMMITTED {
-									return newNullInt(20) // fuzzy read
-								}
-								return newNullInt(2) // no fuzzy read
-							}(level)},
+							{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(2), WantNG: newNullInt(20)},
 							{Query: rollback(level)},
 						},
 					},
+					threshold:  map[string]string{"*": REPEATABLE_READ},
 					wantStarts: map[string][]string{"*": genSeq(3, 4)},
 					wantEnds: map[string][]string{
 						MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
@@ -476,7 +474,7 @@ func Test(t *testing.T) {
 					database: database,
 					level:    level,
 					name:     "phantom read",
-					txs: [][]transactonstest.Query{
+					txs: [][]query{
 						{
 							{Query: "SELECT 1"},
 							{Query: "SELECT 1"},
@@ -485,15 +483,11 @@ func Test(t *testing.T) {
 						{
 							{Query: startTransaction(database, level)},
 							{Query: "SELECT count(*) FROM foo WHERE id = 1", Want: newNullInt(1)},
-							{Query: "SELECT count(*) FROM foo WHERE id = 1", Want: func(l string) *sql.NullInt64 {
-								if l == NO_TRANSACTION || l == READ_UNCOMMITTED || l == READ_COMMITTED {
-									return newNullInt(2) // read phantom
-								}
-								return newNullInt(1)
-							}(level)},
+							{Query: "SELECT count(*) FROM foo WHERE id = 1", WantOK: newNullInt(1), WantNG: newNullInt(2)},
 							{Query: rollback(level)},
 						},
 					},
+					threshold:  map[string]string{"*": REPEATABLE_READ},
 					wantStarts: map[string][]string{"*": genSeq(3, 4)},
 					wantEnds: map[string][]string{
 						MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
@@ -509,18 +503,13 @@ func Test(t *testing.T) {
 					database: database,
 					level:    level,
 					name:     "lost update",
-					txs: [][]transactonstest.Query{
+					txs: [][]query{
 						{
 							{Query: startTransaction(database, level)},
 							{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 							{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 							{Query: commit(level)},
-							{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string, l string) *sql.NullInt64 {
-								if l == SERIALIZABLE || (d == POSTGRES && l == REPEATABLE_READ) {
-									return newNullInt(20) // no lost update
-								}
-								return newNullInt(200) // lost update
-							}(database, level)},
+							{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(20), WantNG: newNullInt(200)},
 						},
 						{
 							{Query: startTransaction(database, level)},
@@ -540,6 +529,10 @@ func Test(t *testing.T) {
 							{Query: commit(level)},
 							{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
 						},
+					},
+					threshold: map[string]string{
+						POSTGRES: REPEATABLE_READ,
+						"*":      SERIALIZABLE,
 					},
 					wantStarts: map[string][]string{
 						SERIALIZABLE:                     genSeq(5, 3),
@@ -563,18 +556,17 @@ func Test(t *testing.T) {
 					database: database,
 					level:    level,
 					name:     "write skew",
-					txs: [][]transactonstest.Query{
+					txs: [][]query{
 						{
 							{Query: startTransaction(database, level)},
-							{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)}, // get X
-							{Query: "UPDATE foo SET value = 20 WHERE id = 3"},                  // update Y to X*10
-							{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(20)},
+							{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},  // get X
+							{Query: "UPDATE foo SET value = 20 WHERE id = 3"},                   // update Y to X*10
+							{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(20)}, // got X*10
 							{Query: commit(level)},
 						},
 						{
 							{Query: startTransaction(database, level)},
 							{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(4)}, // get Y
-							// {Query: "UPDATE foo SET value = 40 WHERE id = 1"},
 							// update X to Y*10
 							{Query: "UPDATE foo SET value = 40 WHERE id = 1", WantErr: func(d string, l string) error {
 								if d == MYSQL && l == SERIALIZABLE {
@@ -582,8 +574,7 @@ func Test(t *testing.T) {
 								}
 								return nil
 							}(database, level)},
-							{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
-							// {Query: commit(level)},
+							{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInt(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
 							{Query: commit(level), WantErr: func(d string, l string) error {
 								if d == POSTGRES && l == SERIALIZABLE {
 									return fmt.Errorf("ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)")
@@ -592,6 +583,7 @@ func Test(t *testing.T) {
 							}(database, level)},
 						},
 					},
+					threshold: map[string]string{"*": SERIALIZABLE},
 					wantStarts: map[string][]string{
 						MYSQL + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "b:4"}, // 1:update is locked
 						MYSQL + ":" + SERIALIZABLE:    genSeq(5, 3),
@@ -646,29 +638,52 @@ func Test(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			var wantStarts []string
+			threshold := tt.threshold["*"]
+			if v, ok := tt.threshold[tt.database]; ok {
+				threshold = v
+			}
+			ok := levelInt[tt.level] >= levelInt[threshold]
+
+			txs := make([][]transactonstest.Query, len(tt.txs))
+			for i, queries := range tt.txs {
+				txs[i] = make([]transactonstest.Query, len(tt.txs[i]))
+				for j, q := range queries {
+					want := q.Want
+					if want == nil {
+						if ok {
+							want = q.WantOK
+						} else {
+							want = q.WantNG
+						}
+					}
+
+					txs[i][j] = transactonstest.Query{
+						Query:   q.Query,
+						Want:    want,
+						WantErr: q.WantErr,
+					}
+				}
+			}
+
+			wantStarts := tt.wantStarts["*"]
 			if v, ok := tt.wantStarts[tt.database+":"+tt.level]; ok {
 				wantStarts = v
 			} else if v, ok := tt.wantStarts[tt.level]; ok {
 				wantStarts = v
 			} else if v, ok := tt.wantStarts[tt.database]; ok {
 				wantStarts = v
-			} else {
-				wantStarts = tt.wantStarts["*"]
 			}
 
-			var wantEnds []string
+			wantEnds := tt.wantEnds["*"]
 			if v, ok := tt.wantEnds[tt.database+":"+tt.level]; ok {
 				wantEnds = v
 			} else if v, ok := tt.wantEnds[tt.level]; ok {
 				wantEnds = v
 			} else if v, ok := tt.wantEnds[tt.database]; ok {
 				wantEnds = v
-			} else {
-				wantEnds = tt.wantEnds["*"]
 			}
 
-			transactonstest.RunTransactionsTest(t, ctx, db, tt.txs, wantStarts, wantEnds)
+			transactonstest.RunTransactionsTest(t, ctx, db, txs, wantStarts, wantEnds)
 
 		})
 	}
