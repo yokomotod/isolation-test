@@ -328,6 +328,149 @@
     }
   },
   {
+    "Name": "fuzzy read with locking read",
+    "Txs": [
+      [
+        {
+          "Query": "",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1 FOR SHARE",
+          "Want": null,
+          "WantOK": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
+          "WantErr": {
+            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
+          }
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "REPEATABLE READ",
+      "mysql": "SERIALIZABLE"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ]
+    }
+  },
+  {
     "Name": "phantom read",
     "Txs": [
       [
@@ -545,15 +688,6 @@
         "b:3"
       ],
       "mysql:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "b:3",
-        "a:2"
-      ],
-      "sqlite:SERIALIZABLE": [
         "a:0",
         "b:0",
         "a:1",

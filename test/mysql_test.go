@@ -454,6 +454,43 @@ var specs = []spec{
 			"*":                         genSeq(3, 4),
 		},
 	},
+	{
+		Name: "fuzzy read with locking read",
+		Txs: [][]query{
+			{
+				{},
+				{},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
+				{Query: "SELECT value FROM foo WHERE id = 1 FOR SHARE", WantOK: newNullInts(2), WantNG: newNullInts(20), WantErr: map[string]string{
+					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+				}},
+				{Query: "ROLLBACK"},
+			},
+		},
+		Threshold: map[string]string{
+			// https://zenn.dev/link/comments/7fb7fc29bb457d
+			// SELECT ... FOR でのロック読み取りはスナップショットではなく本体を読む
+			MYSQL: SERIALIZABLE,
+			"*":   REPEATABLE_READ,
+		},
+		WantStarts: map[string][]string{
+			POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3), // 2nd SELECT crashes
+			POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3), // 2nd SELECT crashes
+			"*":                              genSeq(3, 4),
+		},
+		WantEnds: map[string][]string{
+			MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3),                                      // 2nd SELECT crashes
+			POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3),                                      // 2nd SELECT crashes
+			"*":                              genSeq(3, 4),
+		},
+		skip: func(d string, l string) bool { return d == "sqlite" }, // sqlite doesn't support SELECT ... FOR
+	},
 
 	{
 		Name: "phantom read",
@@ -496,17 +533,13 @@ var specs = []spec{
 			},
 		},
 		Threshold: map[string]string{
-			// https://zenn.dev/link/comments/7fb7fc29bb457d
-			// SELECT ... FOR でのロック読み取りはスナップショットではなく本体を読む
-			// ので、a:select, b:insert, a:select for するとファントムが現れる
 			MYSQL: SERIALIZABLE,
 			"*":   REPEATABLE_READ,
 		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			SQLITE + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			"*":                         genSeq(3, 4),
+			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			"*":                        genSeq(3, 4),
 		},
 		skip: func(d string, l string) bool { return d == "sqlite" }, // sqlite doesn't support SELECT ... FOR
 	},
