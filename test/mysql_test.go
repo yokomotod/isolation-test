@@ -502,7 +502,7 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT count(*) FROM foo WHERE id < 3", Want: newNullInts(1)},
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // unrelated but just start actual transaction
 				{Query: "SELECT count(*) FROM foo WHERE id < 3", WantOK: newNullInts(1), WantNG: newNullInts(2)},
 				{Query: "ROLLBACK"},
 			},
@@ -527,7 +527,7 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // unrelated but just start actual transaction
 				{Query: "SELECT id FROM foo WHERE id < 3 FOR UPDATE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
 				{Query: "ROLLBACK"},
 			},

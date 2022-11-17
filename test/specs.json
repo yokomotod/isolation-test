@@ -505,10 +505,10 @@
           "WantErr": null
         },
         {
-          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "Query": "SELECT value FROM foo WHERE id = 3",
           "Want": [
             {
-              "Int64": 1,
+              "Int64": 4,
               "Valid": true
             }
           ],
@@ -621,10 +621,10 @@
           "WantErr": null
         },
         {
-          "Query": "SELECT id FROM foo WHERE id \u003c 3",
+          "Query": "SELECT value FROM foo WHERE id = 3",
           "Want": [
             {
-              "Int64": 1,
+              "Int64": 4,
               "Valid": true
             }
           ],
