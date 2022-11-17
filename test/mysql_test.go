@@ -164,8 +164,8 @@ func setupPostgreSQL(ctx context.Context) (testcontainers.Container, driver.Conn
 // 		},
 // 	}
 
-// 	wantStarts := []string{"0:0", "1:0", "0:1", "1:1"}
-// 	wantEnds := []string{"0:0", "0:1", "1:0", "1:1"}
+// 	wantStarts := []string{"a:0", "b:0", "a:1", "b:1"}
+// 	wantEnds := []string{"a:0", "a:1", "b:0", "b:1"}
 
 // 	transactonstest.RunTransactionsTest(t, ctx, db, txs, wantStarts, wantEnds)
 // }
@@ -213,8 +213,8 @@ func setupPostgreSQL(ctx context.Context) (testcontainers.Container, driver.Conn
 // 		},
 // 	}
 
-// 	wantStarts := []string{"0:0", "1:0", "0:1", "1:1"}
-// 	wantEnds := []string{"0:0", "0:1", "1:0", "1:1"}
+// 	wantStarts := []string{"a:0", "b:0", "a:1", "b:1"}
+// 	wantEnds := []string{"a:0", "a:1", "b:0", "b:1"}
 
 // 	transactonstest.RunTransactionsTest(t, ctx, db, txs, wantStarts, wantEnds)
 // }
@@ -305,10 +305,10 @@ func genSeq(m, n int) []string {
 
 	for {
 		if i < m {
-			seq = append(seq, fmt.Sprintf("%d:%d", 0, i))
+			seq = append(seq, fmt.Sprintf("%s:%d", "a", i))
 		}
 		if i < n {
-			seq = append(seq, fmt.Sprintf("%d:%d", 1, i))
+			seq = append(seq, fmt.Sprintf("%s:%d", "b", i))
 		}
 		if i >= m && i >= n {
 			break
@@ -370,8 +370,8 @@ func Test(t *testing.T) {
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2"},
-				wantEnds:   []string{"0:0", "1:0", "0:1", "0:2", "0:3", "1:1", "1:2"},
+				wantStarts: []string{"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
+				wantEnds:   []string{"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2"},
 			},
 
 			//
@@ -388,8 +388,8 @@ func Test(t *testing.T) {
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(20)}, // dirty read
 					},
 				},
-				wantStarts: []string{"0:0", "1:0"},
-				// wantEnds:   []string{"0:0", "1:0"}, // mysql fails, maybe too fast to select
+				wantStarts: []string{"a:0", "b:0"},
+				// wantEnds:   []string{"a:0", "b:0"}, // mysql fails, maybe too fast to select
 			},
 			{
 				database: database,
@@ -418,7 +418,7 @@ func Test(t *testing.T) {
 				wantEnds: func(d string) []string {
 					if d == "sqlite3" {
 						// tx0:COMMIT will be locked ?
-						return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2"}
+						return []string{"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}
 					}
 					return genSeq(3, 3)
 				}(database),
@@ -486,11 +486,11 @@ func Test(t *testing.T) {
 				wantEnds: func(d string) []string {
 					if d == "sqlite3" {
 						// tx0:COMMIT will be locked ?
-						return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2"}
+						return []string{"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}
 					}
 					if d == "mysql" {
 						// tx1: SELECT will be locked
-						return []string{"0:0", "1:0", "0:1", "0:2", "1:1", "1:2"}
+						return []string{"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}
 					}
 					return genSeq(3, 3)
 				}(database),
@@ -563,7 +563,7 @@ func Test(t *testing.T) {
 					if d == "postgres" {
 						return genSeq(3, 4) // no lock, same as REPEATABLE READ
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "1:3", "0:2"} // update is locked
+					return []string{"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"} // update is locked
 				}(database),
 			},
 
@@ -631,7 +631,7 @@ func Test(t *testing.T) {
 					if d == "postgres" {
 						return genSeq(3, 4) // no lock
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "1:3", "0:2"} // INSERT is locked
+					return []string{"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"} // INSERT is locked
 				}(database),
 			},
 
@@ -658,7 +658,7 @@ func Test(t *testing.T) {
 					},
 				},
 				wantStarts: genSeq(5, 5),
-				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4", "1:3", "1:4"}, // 1:UPDATE is locked
+				wantEnds:   []string{"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 				skip:       func(d string) bool { return d == "sqlite3" }(database),
 			},
 			{
@@ -698,9 +698,9 @@ func Test(t *testing.T) {
 				}(database),
 				wantEnds: func(d string) []string {
 					if d == "postgres" {
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4"} // 1:UPDATE is locked, and 2nd UPDATE crashes
+						return []string{"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"} // 1:UPDATE is locked, and 2nd UPDATE crashes
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4", "1:3", "1:4"} // 1:UPDATE is locked
+					return []string{"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"} // 1:UPDATE is locked
 				}(database),
 				skip: func(d string) bool {
 					return d == "sqlite3"
@@ -733,12 +733,12 @@ func Test(t *testing.T) {
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "0:4"},
+				wantStarts: []string{"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
 				wantEnds: func(d string) []string {
 					if d == "postgres" {
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4"} // 1:UPDATE locked and then crashes
+						return []string{"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"} // 1:UPDATE locked and then crashes
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2", "0:3", "0:4"}
+					return []string{"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}
 				}(database),
 				skip: func(d string) bool {
 					return d == "sqlite3"
@@ -769,13 +769,13 @@ func Test(t *testing.T) {
 				},
 				wantStarts: func(d string) []string {
 					if d == "mysql" {
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "0:4", "1:3", "1:4"} // 1:update is locked
+						return []string{"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "b:4"} // 1:update is locked
 					}
 					return genSeq(5, 5)
 				}(database),
 				wantEnds: func(d string) []string {
 					if d == "mysql" {
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "0:4", "1:2", "1:3", "1:4"} // 1:update is locked
+						return []string{"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4", "b:2", "b:3", "b:4"} // 1:update is locked
 					}
 					return genSeq(5, 5)
 				}(database),
@@ -813,7 +813,7 @@ func Test(t *testing.T) {
 				}(database),
 				wantEnds: func(d string) []string {
 					if d == "mysql" {
-						return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2", "0:3", "0:4"} // query 0:2 is locked, query1:2 crashes
+						return []string{"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"} // query 0:2 is locked, query1:2 crashes
 					}
 					return genSeq(5, 5)
 				}(database),

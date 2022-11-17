@@ -38,6 +38,8 @@ var (
 	waitSleep = 50 * time.Millisecond
 )
 
+var ab = []string{"a", "b"}
+
 func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]Query, wantStarts, wantEnds []string) {
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev)
@@ -83,18 +85,18 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 			for j, q := range queries {
 				ch <- struct{}{} // 1つ目のクエリを並行実行してしまわないように最後ではなく最初に同期
 
-				logger.Printf("(go %d) start %d>[%d] %s\n", goID, i, j, q.Query)
-				gotStarts = append(gotStarts, fmt.Sprintf("%d:%d", i, j))
+				logger.Printf("(go %d) start %s>[%d] %s\n", goID, ab[i], j, q.Query)
+				gotStarts = append(gotStarts, fmt.Sprintf("%s:%d", ab[i], j))
 				// start := time.Now()
 				ran = i
 				var got sql.NullInt64
 				err := conn.QueryRowContext(ctx, q.Query).Scan(&got)
 				ch <- struct{}{} // 結果を待つために同期
-				logger.Printf("(go %d) end   %d<[%d] %s\n", goID, i, j, q.Query)
+				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
 				if err != nil {
 					if q.WantErr != nil && err.Error() == q.WantErr.Error() {
 						// ok, but break
-						logger.Printf("(go %d) err   %d<[%d] %s\n", goID, i, j, err)
+						logger.Printf("(go %d) err   %s<[%d] %s\n", goID, ab[i], j, err)
 					} else if err == sql.ErrNoRows && q.Want == nil && q.WantErr == nil {
 						// ok
 					} else {
@@ -106,10 +108,10 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 					}
 				} else {
 					if q.Want != nil && got != *q.Want {
-						t.Errorf("query %d:%d got=%+v, want=%+v", i, j, got, q.Want)
+						t.Errorf("query %s:%d got=%+v, want=%+v", ab[i], j, got, q.Want)
 					}
 					if q.WantErr != nil {
-						t.Errorf("query %d:%d got=%+v, wantErr=%+v", i, j, got, q.WantErr)
+						t.Errorf("query %s:%d got=%+v, wantErr=%+v", ab[i], j, got, q.WantErr)
 					}
 				}
 
@@ -120,8 +122,8 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 					logger.Printf("(go %d) additional sleep after lock\n", goID)
 					time.Sleep(stepSleep)
 				}
-				logger.Printf("(go %d) append %d<[%d] %s\n", goID, i, j, q.Query)
-				gotEnds = append(gotEnds, fmt.Sprintf("%d:%d", i, j))
+				logger.Printf("(go %d) append %s<[%d] %s\n", goID, ab[i], j, q.Query)
+				gotEnds = append(gotEnds, fmt.Sprintf("%s:%d", ab[i], j))
 				if err != nil && err != sql.ErrNoRows {
 					break
 				}
