@@ -18,7 +18,7 @@ import (
 type Query struct {
 	Query   string
 	Want    *sql.NullInt64
-	WantErr error
+	WantErr string
 }
 
 func getGoID() int {
@@ -94,10 +94,10 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 				ch <- struct{}{} // 結果を待つために同期
 				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
 				if err != nil {
-					if q.WantErr != nil && err.Error() == q.WantErr.Error() {
+					if q.WantErr != "" && err.Error() == q.WantErr {
 						// ok, but break
 						logger.Printf("(go %d) err   %s<[%d] %s\n", goID, ab[i], j, err)
-					} else if err == sql.ErrNoRows && q.Want == nil && q.WantErr == nil {
+					} else if err == sql.ErrNoRows && q.Want == nil && q.WantErr == "" {
 						// ok
 					} else {
 						// fmt.Printf("%#v\n", err)
@@ -110,8 +110,8 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 					if q.Want != nil && got != *q.Want {
 						t.Errorf("query %s:%d got=%+v, want=%+v", ab[i], j, got, q.Want)
 					}
-					if q.WantErr != nil {
-						t.Errorf("query %s:%d got=%+v, wantErr=%+v", ab[i], j, got, q.WantErr)
+					if q.WantErr != "" {
+						t.Errorf("query %s:%d got=%+v, wantErr=%s", ab[i], j, got, q.WantErr)
 					}
 				}
 
