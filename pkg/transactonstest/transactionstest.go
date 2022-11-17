@@ -91,6 +91,10 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 				ch <- struct{}{} // 結果を待つために同期
 				logger.Printf("(go %d) end   %d<[%d] %s\n", goID, i, j, q.Query)
 				if err != nil {
+					if err != sql.ErrNoRows {
+						t.Error(err)
+						break
+					}
 					if err == sql.ErrNoRows && q.Want != nil {
 						panic(fmt.Errorf("query %d:%d %w", i, j, err))
 					}
