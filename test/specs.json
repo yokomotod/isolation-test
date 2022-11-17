@@ -1,0 +1,788 @@
+[
+  {
+    "Name": "dirty write",
+    "Txs": [
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": null,
+          "WantOK": {
+            "Int64": 20,
+            "Valid": true
+          },
+          "WantNG": {
+            "Int64": 200,
+            "Valid": true
+          },
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 200 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "READ UNCOMMITTED"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "b:2"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3"
+      ]
+    }
+  },
+  {
+    "Name": "dirty read",
+    "Txs": [
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": null,
+          "WantOK": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantNG": {
+            "Int64": 20,
+            "Valid": true
+          },
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "READ COMMITTED",
+      "postgres": "READ UNCOMMITTED"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "b:1",
+        "b:2"
+      ]
+    }
+  },
+  {
+    "Name": "fuzzy read",
+    "Txs": [
+      [
+        {
+          "Query": "SELECT 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": null,
+          "WantOK": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantNG": {
+            "Int64": 20,
+            "Valid": true
+          },
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "REPEATABLE READ"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "sqlite:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ]
+    }
+  },
+  {
+    "Name": "phantom read",
+    "Txs": [
+      [
+        {
+          "Query": "SELECT 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "INSERT INTO foo VALUES (1, 20)",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT count(*) FROM foo WHERE id = 1",
+          "Want": {
+            "Int64": 1,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT count(*) FROM foo WHERE id = 1",
+          "Want": null,
+          "WantOK": {
+            "Int64": 1,
+            "Valid": true
+          },
+          "WantNG": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "REPEATABLE READ"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "sqlite:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ]
+    }
+  },
+  {
+    "Name": "lost update",
+    "Txs": [
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "COMMIT",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": null,
+          "WantOK": {
+            "Int64": 20,
+            "Valid": true
+          },
+          "WantNG": {
+            "Int64": 200,
+            "Valid": true
+          },
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 200 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": {
+            "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
+          }
+        },
+        {
+          "Query": "COMMIT",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": {
+            "Int64": 200,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "SERIALIZABLE",
+      "postgres": "REPEATABLE READ"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
+        "b:4"
+      ],
+      "SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "a:4",
+        "b:3",
+        "b:4"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
+        "b:4"
+      ],
+      "SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "a:3",
+        "a:4"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "a:4"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "a:4"
+      ]
+    }
+  },
+  {
+    "Name": "write skew",
+    "Txs": [
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": {
+            "Int64": 2,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 20 WHERE id = 3",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 3",
+          "Want": {
+            "Int64": 20,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "COMMIT",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 3",
+          "Want": {
+            "Int64": 4,
+            "Valid": true
+          },
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "UPDATE foo SET value = 40 WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": {
+            "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction"
+          }
+        },
+        {
+          "Query": "SELECT value FROM foo WHERE id = 1",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": {
+            "Int64": 40,
+            "Valid": true
+          },
+          "WantErr": null
+        },
+        {
+          "Query": "COMMIT",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": {
+            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)"
+          }
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "SERIALIZABLE"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
+        "b:4"
+      ],
+      "mysql:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "b:3",
+        "b:4"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
+        "b:4"
+      ],
+      "mysql:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "a:4",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "a:3",
+        "a:4"
+      ]
+    }
+  }
+]

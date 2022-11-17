@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -348,19 +350,19 @@ func genSeq(m, n int) []string {
 }
 
 type query struct {
-	query   string
-	want    *sql.NullInt64
-	wantOK  *sql.NullInt64
-	wantNG  *sql.NullInt64
-	wantErr map[string]string
+	Query   string
+	Want    *sql.NullInt64
+	WantOK  *sql.NullInt64
+	WantNG  *sql.NullInt64
+	WantErr map[string]string
 }
 
 type spec struct {
-	name       string
-	txs        func(database string, level string) [][]query
-	threshold  map[string]string
-	wantStarts map[string][]string
-	wantEnds   map[string][]string
+	Name       string
+	Txs        [][]query
+	Threshold  map[string]string
+	WantStarts map[string][]string
+	WantEnds   map[string][]string
 	skip       func(database string, level string) bool
 }
 
@@ -369,28 +371,26 @@ var specs = []spec{
 	// dirty write
 	//
 	{
-		name: "dirty write",
-		txs: func(database string, level string) [][]query {
-			return [][]query{
-				{
-					{query: startTransaction(database, level)},
-					{query: "UPDATE foo SET value = 20 WHERE id = 1"},
-					{query: "SELECT value FROM foo WHERE id = 1", wantOK: newNullInt(20), wantNG: newNullInt(200)},
-					{query: rollback(level)},
-				},
-				{
-					{query: startTransaction(database, level)},
-					{query: "UPDATE foo SET value = 200 WHERE id = 1"},
-					{query: rollback(level)},
-				},
-			}
+		Name: "dirty write",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(20), WantNG: newNullInt(200)},
+				{Query: "ROLLBACK"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
+				{Query: "ROLLBACK"},
+			},
 		},
-		threshold: map[string]string{"*": READ_UNCOMMITTED},
-		wantStarts: map[string][]string{
+		Threshold: map[string]string{"*": READ_UNCOMMITTED},
+		WantStarts: map[string][]string{
 			NO_TRANSACTION: genSeq(4, 3),
 			"*":            {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
 		},
-		wantEnds: map[string][]string{
+		WantEnds: map[string][]string{
 			NO_TRANSACTION: genSeq(4, 3),
 			"*":            {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2"},
 		},
@@ -400,27 +400,25 @@ var specs = []spec{
 	// dirty read
 	//
 	{
-		name: "dirty read",
-		txs: func(database string, level string) [][]query {
-			return [][]query{
-				{
-					{query: startTransaction(database, level)},
-					{query: "UPDATE foo SET value = 20 WHERE id = 1"},
-					{query: rollback(level)},
-				},
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT value FROM foo WHERE id = 1", wantOK: newNullInt(2), wantNG: newNullInt(20)},
-					{query: rollback(level)},
-				},
-			}
+		Name: "dirty read",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+				{Query: "ROLLBACK"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(2), WantNG: newNullInt(20)},
+				{Query: "ROLLBACK"},
+			},
 		},
-		threshold: map[string]string{
+		Threshold: map[string]string{
 			"*":      READ_COMMITTED,
 			POSTGRES: READ_UNCOMMITTED,
 		},
-		wantStarts: map[string][]string{"*": genSeq(3, 3)},
-		wantEnds: map[string][]string{
+		WantStarts: map[string][]string{"*": genSeq(3, 3)},
+		WantEnds: map[string][]string{
 			NO_TRANSACTION: genSeq(3, 3),
 			// 変な挙動だったのがなんか急に起こらなくなった
 			// SQLITE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}, // tx0:COMMIT will be locked ?
@@ -436,25 +434,23 @@ var specs = []spec{
 	// > 複数の値の間で不一貫な状況を読んでしまう事。
 	//
 	{
-		name: "fuzzy read",
-		txs: func(database string, level string) [][]query {
-			return [][]query{
-				{
-					{query: "SELECT 1"},
-					{query: "SELECT 1"},
-					{query: "UPDATE foo SET value = 20 WHERE id = 1"},
-				},
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT value FROM foo WHERE id = 1", want: newNullInt(2)},
-					{query: "SELECT value FROM foo WHERE id = 1", wantOK: newNullInt(2), wantNG: newNullInt(20)},
-					{query: rollback(level)},
-				},
-			}
+		Name: "fuzzy read",
+		Txs: [][]query{
+			{
+				{Query: "SELECT 1"},
+				{Query: "SELECT 1"},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(2), WantNG: newNullInt(20)},
+				{Query: "ROLLBACK"},
+			},
 		},
-		threshold:  map[string]string{"*": REPEATABLE_READ},
-		wantStarts: map[string][]string{"*": genSeq(3, 4)},
-		wantEnds: map[string][]string{
+		Threshold:  map[string]string{"*": REPEATABLE_READ},
+		WantStarts: map[string][]string{"*": genSeq(3, 4)},
+		WantEnds: map[string][]string{
 			MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLITE + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			"*":                         genSeq(3, 4),
@@ -465,25 +461,23 @@ var specs = []spec{
 	// phantom read
 	//
 	{
-		name: "phantom read",
-		txs: func(database string, level string) [][]query {
-			return [][]query{
-				{
-					{query: "SELECT 1"},
-					{query: "SELECT 1"},
-					{query: "INSERT INTO foo VALUES (1, 20)"},
-				},
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT count(*) FROM foo WHERE id = 1", want: newNullInt(1)},
-					{query: "SELECT count(*) FROM foo WHERE id = 1", wantOK: newNullInt(1), wantNG: newNullInt(2)},
-					{query: rollback(level)},
-				},
-			}
+		Name: "phantom read",
+		Txs: [][]query{
+			{
+				{Query: "SELECT 1"},
+				{Query: "SELECT 1"},
+				{Query: "INSERT INTO foo VALUES (1, 20)"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT count(*) FROM foo WHERE id = 1", Want: newNullInt(1)},
+				{Query: "SELECT count(*) FROM foo WHERE id = 1", WantOK: newNullInt(1), WantNG: newNullInt(2)},
+				{Query: "ROLLBACK"},
+			},
 		},
-		threshold:  map[string]string{"*": REPEATABLE_READ},
-		wantStarts: map[string][]string{"*": genSeq(3, 4)},
-		wantEnds: map[string][]string{
+		Threshold:  map[string]string{"*": REPEATABLE_READ},
+		WantStarts: map[string][]string{"*": genSeq(3, 4)},
+		WantEnds: map[string][]string{
 			MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			SQLITE + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			"*":                         genSeq(3, 4),
@@ -494,39 +488,37 @@ var specs = []spec{
 	// lost update
 	//
 	{
-		name: "lost update",
-		txs: func(database string, level string) [][]query {
-			return [][]query{
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT value FROM foo WHERE id = 1", want: newNullInt(2)},
-					{query: "UPDATE foo SET value = 20 WHERE id = 1"},
-					{query: commit(level)},
-					{query: "SELECT value FROM foo WHERE id = 1", wantOK: newNullInt(20), wantNG: newNullInt(200)},
-				},
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT value FROM foo WHERE id = 1", want: newNullInt(2)},
-					{query: "UPDATE foo SET value = 200 WHERE id = 1", wantErr: map[string]string{
-						MYSQL + ":" + SERIALIZABLE:       "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
-						POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-						POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					}},
-					{query: commit(level)},
-					{query: "SELECT value FROM foo WHERE id = 1", want: newNullInt(200)},
-				},
-			}
+		Name: "lost update",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+				{Query: "COMMIT"},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(20), WantNG: newNullInt(200)},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
+				{Query: "UPDATE foo SET value = 200 WHERE id = 1", WantErr: map[string]string{
+					MYSQL + ":" + SERIALIZABLE:       "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+				}},
+				{Query: "COMMIT"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
+			},
 		},
-		threshold: map[string]string{
+		Threshold: map[string]string{
 			POSTGRES: REPEATABLE_READ,
 			"*":      SERIALIZABLE,
 		},
-		wantStarts: map[string][]string{
+		WantStarts: map[string][]string{
 			SERIALIZABLE:                     genSeq(5, 3),
 			POSTGRES + ":" + REPEATABLE_READ: genSeq(5, 3),
 			"*":                              genSeq(5, 5),
 		},
-		wantEnds: map[string][]string{
+		WantEnds: map[string][]string{
 			NO_TRANSACTION:                   genSeq(5, 5),
 			SERIALIZABLE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
 			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
@@ -540,37 +532,35 @@ var specs = []spec{
 	// write skew
 	//
 	{
-		name: "write skew",
-		txs: func(database string, level string) [][]query {
-			return [][]query{
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT value FROM foo WHERE id = 1", want: newNullInt(2)},  // get X
-					{query: "UPDATE foo SET value = 20 WHERE id = 3"},                   // update Y to X*10
-					{query: "SELECT value FROM foo WHERE id = 3", want: newNullInt(20)}, // got X*10
-					{query: commit(level)},
-				},
-				{
-					{query: startTransaction(database, level)},
-					{query: "SELECT value FROM foo WHERE id = 3", want: newNullInt(4)}, // get Y
-					// update X to Y*10
-					{query: "UPDATE foo SET value = 40 WHERE id = 1", wantErr: map[string]string{
-						MYSQL + ":" + SERIALIZABLE: "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
-					}},
-					{query: "SELECT value FROM foo WHERE id = 1", wantNG: newNullInt(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
-					{query: commit(level), wantErr: map[string]string{
-						POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
-					}},
-				},
-			}
+		Name: "write skew",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},  // get X
+				{Query: "UPDATE foo SET value = 20 WHERE id = 3"},                   // update Y to X*10
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(20)}, // got X*10
+				{Query: "COMMIT"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(4)}, // get Y
+				// update X to Y*10
+				{Query: "UPDATE foo SET value = 40 WHERE id = 1", WantErr: map[string]string{
+					MYSQL + ":" + SERIALIZABLE: "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+				}},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInt(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
+				{Query: "COMMIT", WantErr: map[string]string{
+					POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
+				}},
+			},
 		},
-		threshold: map[string]string{"*": SERIALIZABLE},
-		wantStarts: map[string][]string{
+		Threshold: map[string]string{"*": SERIALIZABLE},
+		WantStarts: map[string][]string{
 			MYSQL + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "b:4"}, // 1:update is locked
 			MYSQL + ":" + SERIALIZABLE:    genSeq(5, 3),
 			"*":                           genSeq(5, 5),
 		},
-		wantEnds: map[string][]string{
+		WantEnds: map[string][]string{
 			MYSQL + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4", "b:2", "b:3", "b:4"}, // 1:update is locked
 			MYSQL + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},               // query 0:2 is locked, query1:2 crashes
 			"*":                           genSeq(5, 5),
@@ -580,6 +570,16 @@ var specs = []spec{
 }
 
 func Test(t *testing.T) {
+
+	buf, err := json.MarshalIndent(specs, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile("./specs.json", buf, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	type test struct {
 		database   string
 		level      string
@@ -590,6 +590,7 @@ func Test(t *testing.T) {
 		wantEnds   map[string][]string
 		skip       bool
 	}
+
 	tests := make([]test, 0)
 
 	for _, database := range databases {
@@ -603,11 +604,11 @@ func Test(t *testing.T) {
 				tests = append(tests, test{
 					database:   database,
 					level:      level,
-					name:       spec.name,
-					txs:        spec.txs(database, level),
-					threshold:  spec.threshold,
-					wantStarts: spec.wantStarts,
-					wantEnds:   spec.wantEnds,
+					name:       spec.Name,
+					txs:        spec.Txs,
+					threshold:  spec.Threshold,
+					wantStarts: spec.WantStarts,
+					wantEnds:   spec.WantEnds,
 					skip:       skip,
 				})
 			}
@@ -662,19 +663,28 @@ func Test(t *testing.T) {
 			for i, queries := range tt.txs {
 				txs[i] = make([]transactonstest.Query, len(tt.txs[i]))
 				for j, q := range queries {
-					want := q.want
+					query := q.Query
+					if query == "BEGIN" {
+						query = startTransaction(tt.database, tt.level)
+					} else if query == "COMMIT" {
+						query = commit(tt.level)
+					} else if query == "ROLLBACK" {
+						query = rollback(tt.level)
+					}
+
+					want := q.Want
 					if want == nil {
 						if ok {
-							want = q.wantOK
+							want = q.WantOK
 						} else {
-							want = q.wantNG
+							want = q.WantNG
 						}
 					}
 
 					txs[i][j] = transactonstest.Query{
-						Query:   q.query,
+						Query:   query,
 						Want:    want,
-						WantErr: q.wantErr[tt.database+":"+tt.level],
+						WantErr: q.WantErr[tt.database+":"+tt.level],
 					}
 				}
 			}
