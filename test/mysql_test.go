@@ -647,7 +647,7 @@ func Test(t *testing.T) {
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
-						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
+						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)}, // lost update
 					},
 					{
 						{Query: startTransaction(database, "READ COMMITTED")},
@@ -670,22 +670,39 @@ func Test(t *testing.T) {
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
-						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
+						{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string) *sql.NullInt64 {
+							if d == "postgres" {
+								return newNullInt(20) // no lost update
+							}
+							return newNullInt(200)
+						}(database)},
 					},
 					{
 						{Query: startTransaction(database, "REPEATABLE READ")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
-						{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
+						{Query: "UPDATE foo SET value = 200 WHERE id = 1", WantErr: func(d string) error {
+							if d == "postgres" {
+								return fmt.Errorf("ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)")
+							}
+							return nil
+						}(database)},
 						{Query: "COMMIT"},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
 					},
 				},
-				wantStarts: genSeq(5, 5),
-				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4", "1:3", "1:4"}, // 1:UPDATE is locked
-				skip: func(d string) bool {
+				wantStarts: func(d string) []string {
 					if d == "postgres" {
-						return true // ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)
+						return genSeq(5, 3) // 3th query crashes
 					}
+					return genSeq(5, 5)
+				}(database),
+				wantEnds: func(d string) []string {
+					if d == "postgres" {
+						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4"} // 1:UPDATE is locked, and 2nd UPDATE crashes
+					}
+					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4", "1:3", "1:4"} // 1:UPDATE is locked
+				}(database),
+				skip: func(d string) bool {
 					return d == "sqlite3"
 				}(database),
 			},
@@ -698,17 +715,34 @@ func Test(t *testing.T) {
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
-						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
+						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(20)},
 					},
 					{
 						{Query: startTransaction(database, "SERIALIZABLE")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
-						{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
+						{Query: "UPDATE foo SET value = 200 WHERE id = 1", WantErr: func(d string) error {
+							if d == "mysql" {
+								return fmt.Errorf("Error 1213: Deadlock found when trying to get lock; try restarting transaction")
+							}
+							if d == "postgres" {
+								return fmt.Errorf("ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)")
+							}
+							return nil
+						}(database)},
 						{Query: "COMMIT"},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
 					},
 				},
-				skip: true, // error all
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "0:4"},
+				wantEnds: func(d string) []string {
+					if d == "postgres" {
+						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "0:4"} // 1:UPDATE locked and then crashes
+					}
+					return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2", "0:3", "0:4"}
+				}(database),
+				skip: func(d string) bool {
+					return d == "sqlite3"
+				}(database),
 			},
 
 			//
@@ -761,12 +795,31 @@ func Test(t *testing.T) {
 					{
 						{Query: startTransaction(database, "SERIALIZABLE")},
 						{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(4)},
-						{Query: "UPDATE foo SET value = 40 WHERE id = 1"},
+						{Query: "UPDATE foo SET value = 40 WHERE id = 1", WantErr: func(d string) error {
+							if d == "mysql" {
+								return fmt.Errorf("Error 1213: Deadlock found when trying to get lock; try restarting transaction")
+							}
+							return nil
+						}(database)},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(40)},
-						{Query: "COMMIT"},
+						{Query: "COMMIT", WantErr: fmt.Errorf("ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)")},
 					},
 				},
-				skip: true, // error all
+				wantStarts: func(d string) []string {
+					if d == "mysql" {
+						return genSeq(5, 3) // query1:2 crashes
+					}
+					return genSeq(5, 5)
+				}(database),
+				wantEnds: func(d string) []string {
+					if d == "mysql" {
+						return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2", "0:3", "0:4"} // query 0:2 is locked, query1:2 crashes
+					}
+					return genSeq(5, 5)
+				}(database),
+				skip: func(d string) bool {
+					return d == "sqlite3"
+				}(database),
 			},
 		}...)
 	}
