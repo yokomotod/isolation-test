@@ -323,8 +323,12 @@ func rollback(level string) string {
 // docker run -d -e MYSQL_DATABASE=test -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 mysql:8.0.31
 // docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:15.0
 
-func newNullInt(value int64) *sql.NullInt64 {
-	return &sql.NullInt64{Int64: value, Valid: true}
+func newNullInts(values ...int64) []sql.NullInt64 {
+	res := make([]sql.NullInt64, len(values))
+	for i, v := range values {
+		res[i] = sql.NullInt64{Int64: v, Valid: true}
+	}
+	return res
 }
 
 func genSeq(m, n int) []string {
@@ -351,9 +355,9 @@ func genSeq(m, n int) []string {
 
 type query struct {
 	Query   string
-	Want    *sql.NullInt64
-	WantOK  *sql.NullInt64
-	WantNG  *sql.NullInt64
+	Want    []sql.NullInt64
+	WantOK  []sql.NullInt64
+	WantNG  []sql.NullInt64
 	WantErr map[string]string
 }
 
@@ -367,16 +371,13 @@ type spec struct {
 }
 
 var specs = []spec{
-	//
-	// dirty write
-	//
 	{
 		Name: "dirty write",
 		Txs: [][]query{
 			{
 				{Query: "BEGIN"},
 				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(20), WantNG: newNullInt(200)},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(20), WantNG: newNullInts(200)},
 				{Query: "ROLLBACK"},
 			},
 			{
@@ -396,9 +397,6 @@ var specs = []spec{
 		},
 	},
 
-	//
-	// dirty read
-	//
 	{
 		Name: "dirty read",
 		Txs: [][]query{
@@ -409,7 +407,7 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(2), WantNG: newNullInt(20)},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(2), WantNG: newNullInts(20)},
 				{Query: "ROLLBACK"},
 			},
 		},
@@ -437,14 +435,14 @@ var specs = []spec{
 		Name: "fuzzy read",
 		Txs: [][]query{
 			{
-				{Query: "SELECT 1"},
-				{Query: "SELECT 1"},
+				{},
+				{},
 				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(2), WantNG: newNullInt(20)},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(2), WantNG: newNullInts(20)},
 				{Query: "ROLLBACK"},
 			},
 		},
@@ -457,21 +455,18 @@ var specs = []spec{
 		},
 	},
 
-	//
-	// phantom read
-	//
 	{
 		Name: "phantom read",
 		Txs: [][]query{
 			{
-				{Query: "SELECT 1"},
-				{Query: "SELECT 1"},
-				{Query: "INSERT INTO foo VALUES (1, 20)"},
+				{},
+				{},
+				{Query: "INSERT INTO foo VALUES (2, 20)"},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT count(*) FROM foo WHERE id = 1", Want: newNullInt(1)},
-				{Query: "SELECT count(*) FROM foo WHERE id = 1", WantOK: newNullInt(1), WantNG: newNullInt(2)},
+				{Query: "SELECT count(*) FROM foo WHERE id < 3", Want: newNullInts(1)},
+				{Query: "SELECT count(*) FROM foo WHERE id < 3", WantOK: newNullInts(1), WantNG: newNullInts(2)},
 				{Query: "ROLLBACK"},
 			},
 		},
@@ -483,30 +478,59 @@ var specs = []spec{
 			"*":                         genSeq(3, 4),
 		},
 	},
+	{
+		// note: Postgresでは集約関数でSELECT...FORは使えない
+		// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
+		Name: "phantom read with locking read",
+		Txs: [][]query{
+			{
+				{},
+				{},
+				{Query: "INSERT INTO foo VALUES (2, 20)"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
+				{Query: "SELECT id FROM foo WHERE id < 3 FOR UPDATE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
+				{Query: "ROLLBACK"},
+			},
+		},
+		Threshold: map[string]string{
+			// https://zenn.dev/link/comments/7fb7fc29bb457d
+			// SELECT ... FOR でのロック読み取りはスナップショットではなく本体を読む
+			// ので、a:select, b:insert, a:select for するとファントムが現れる
+			MYSQL: SERIALIZABLE,
+			"*":   REPEATABLE_READ,
+		},
+		WantStarts: map[string][]string{"*": genSeq(3, 4)},
+		WantEnds: map[string][]string{
+			MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			SQLITE + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			"*":                         genSeq(3, 4),
+		},
+		skip: func(d string, l string) bool { return d == "sqlite" }, // sqlite doesn't support SELECT ... FOR
+	},
 
-	//
-	// lost update
-	//
 	{
 		Name: "lost update",
 		Txs: [][]query{
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
 				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInt(20), WantNG: newNullInt(200)},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(20), WantNG: newNullInts(200)},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
 				{Query: "UPDATE foo SET value = 200 WHERE id = 1", WantErr: map[string]string{
 					MYSQL + ":" + SERIALIZABLE:       "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
 					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 				}},
 				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(200)},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
 			},
 		},
 		Threshold: map[string]string{
@@ -528,27 +552,24 @@ var specs = []spec{
 		skip: func(d string, l string) bool { return d == SQLITE && l == SERIALIZABLE }, // "database is locked" won't finish transaction ?
 	},
 
-	//
-	// write skew
-	//
 	{
 		Name: "write skew",
 		Txs: [][]query{
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},  // get X
-				{Query: "UPDATE foo SET value = 20 WHERE id = 3"},                   // update Y to X*10
-				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(20)}, // got X*10
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},  // get X
+				{Query: "UPDATE foo SET value = 20 WHERE id = 3"},                    // update Y to X*10
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(20)}, // got X*10
 				{Query: "COMMIT"},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInt(4)}, // get Y
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // get Y
 				// update X to Y*10
 				{Query: "UPDATE foo SET value = 40 WHERE id = 1", WantErr: map[string]string{
 					MYSQL + ":" + SERIALIZABLE: "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
 				}},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInt(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
+				{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInts(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
 				{Query: "COMMIT", WantErr: map[string]string{
 					POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
 				}},
@@ -664,7 +685,9 @@ func Test(t *testing.T) {
 				txs[i] = make([]transactonstest.Query, len(tt.txs[i]))
 				for j, q := range queries {
 					query := q.Query
-					if query == "BEGIN" {
+					if query == "" {
+						query = "SELECT 1"
+					} else if query == "BEGIN" {
 						query = startTransaction(tt.database, tt.level)
 					} else if query == "COMMIT" {
 						query = commit(tt.level)

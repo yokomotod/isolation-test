@@ -20,14 +20,18 @@
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
           "Want": null,
-          "WantOK": {
-            "Int64": 20,
-            "Valid": true
-          },
-          "WantNG": {
-            "Int64": 200,
-            "Valid": true
-          },
+          "WantOK": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 200,
+              "Valid": true
+            }
+          ],
           "WantErr": null
         },
         {
@@ -143,14 +147,18 @@
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
           "Want": null,
-          "WantOK": {
-            "Int64": 2,
-            "Valid": true
-          },
-          "WantNG": {
-            "Int64": 20,
-            "Valid": true
-          },
+          "WantOK": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
           "WantErr": null
         },
         {
@@ -208,14 +216,14 @@
     "Txs": [
       [
         {
-          "Query": "SELECT 1",
+          "Query": "",
           "Want": null,
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
         },
         {
-          "Query": "SELECT 1",
+          "Query": "",
           "Want": null,
           "WantOK": null,
           "WantNG": null,
@@ -239,10 +247,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": {
-            "Int64": 2,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -250,14 +260,18 @@
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
           "Want": null,
-          "WantOK": {
-            "Int64": 2,
-            "Valid": true
-          },
-          "WantNG": {
-            "Int64": 20,
-            "Valid": true
-          },
+          "WantOK": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
           "WantErr": null
         },
         {
@@ -318,21 +332,21 @@
     "Txs": [
       [
         {
-          "Query": "SELECT 1",
+          "Query": "",
           "Want": null,
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
         },
         {
-          "Query": "SELECT 1",
+          "Query": "",
           "Want": null,
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
         },
         {
-          "Query": "INSERT INTO foo VALUES (1, 20)",
+          "Query": "INSERT INTO foo VALUES (2, 20)",
           "Want": null,
           "WantOK": null,
           "WantNG": null,
@@ -348,26 +362,32 @@
           "WantErr": null
         },
         {
-          "Query": "SELECT count(*) FROM foo WHERE id = 1",
-          "Want": {
-            "Int64": 1,
-            "Valid": true
-          },
+          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "Want": [
+            {
+              "Int64": 1,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
         },
         {
-          "Query": "SELECT count(*) FROM foo WHERE id = 1",
+          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
           "Want": null,
-          "WantOK": {
-            "Int64": 1,
-            "Valid": true
-          },
-          "WantNG": {
-            "Int64": 2,
-            "Valid": true
-          },
+          "WantOK": [
+            {
+              "Int64": 1,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
           "WantErr": null
         },
         {
@@ -424,6 +444,127 @@
     }
   },
   {
+    "Name": "phantom read with locking read",
+    "Txs": [
+      [
+        {
+          "Query": "",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "INSERT INTO foo VALUES (2, 20)",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ],
+      [
+        {
+          "Query": "BEGIN",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT id FROM foo WHERE id \u003c 3",
+          "Want": [
+            {
+              "Int64": 1,
+              "Valid": true
+            }
+          ],
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        },
+        {
+          "Query": "SELECT id FROM foo WHERE id \u003c 3 FOR UPDATE",
+          "Want": null,
+          "WantOK": [
+            {
+              "Int64": 1,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 1,
+              "Valid": true
+            },
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "WantErr": null
+        },
+        {
+          "Query": "ROLLBACK",
+          "Want": null,
+          "WantOK": null,
+          "WantNG": null,
+          "WantErr": null
+        }
+      ]
+    ],
+    "Threshold": {
+      "*": "REPEATABLE READ",
+      "mysql": "SERIALIZABLE"
+    },
+    "WantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ]
+    },
+    "WantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "sqlite:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ]
+    }
+  },
+  {
     "Name": "lost update",
     "Txs": [
       [
@@ -436,10 +577,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": {
-            "Int64": 2,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -461,14 +604,18 @@
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
           "Want": null,
-          "WantOK": {
-            "Int64": 20,
-            "Valid": true
-          },
-          "WantNG": {
-            "Int64": 200,
-            "Valid": true
-          },
+          "WantOK": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
+          "WantNG": [
+            {
+              "Int64": 200,
+              "Valid": true
+            }
+          ],
           "WantErr": null
         }
       ],
@@ -482,10 +629,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": {
-            "Int64": 2,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -510,10 +659,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": {
-            "Int64": 200,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 200,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -628,10 +779,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": {
-            "Int64": 2,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -645,10 +798,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 3",
-          "Want": {
-            "Int64": 20,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -671,10 +826,12 @@
         },
         {
           "Query": "SELECT value FROM foo WHERE id = 3",
-          "Want": {
-            "Int64": 4,
-            "Valid": true
-          },
+          "Want": [
+            {
+              "Int64": 4,
+              "Valid": true
+            }
+          ],
           "WantOK": null,
           "WantNG": null,
           "WantErr": null
@@ -692,10 +849,12 @@
           "Query": "SELECT value FROM foo WHERE id = 1",
           "Want": null,
           "WantOK": null,
-          "WantNG": {
-            "Int64": 40,
-            "Valid": true
-          },
+          "WantNG": [
+            {
+              "Int64": 40,
+              "Valid": true
+            }
+          ],
           "WantErr": null
         },
         {

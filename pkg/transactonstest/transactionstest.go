@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ import (
 
 type Query struct {
 	Query   string
-	Want    *sql.NullInt64
+	Want    []sql.NullInt64
 	WantErr string
 }
 
@@ -89,8 +90,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 				gotStarts = append(gotStarts, fmt.Sprintf("%s:%d", ab[i], j))
 				// start := time.Now()
 				ran = i
-				var got sql.NullInt64
-				err := conn.QueryRowContext(ctx, q.Query).Scan(&got)
+				rows, err := conn.QueryContext(ctx, q.Query)
 				ch <- struct{}{} // 結果を待つために同期
 				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
 				if err != nil {
@@ -107,7 +107,18 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 						panic(err)
 					}
 				} else {
-					if q.Want != nil && got != *q.Want {
+					got := make([]sql.NullInt64, 0)
+					for rows.Next() {
+						var c sql.NullInt64
+						err = rows.Scan(&c)
+						if err != nil {
+							break
+						}
+						got = append(got, c)
+					}
+					logger.Printf("(go %d) got   %s<[%d] %+v\n", goID, ab[i], j, got)
+
+					if q.Want != nil && !reflect.DeepEqual(got, q.Want) {
 						t.Errorf("query %s:%d got=%+v, want=%+v", ab[i], j, got, q.Want)
 					}
 					if q.WantErr != "" {
