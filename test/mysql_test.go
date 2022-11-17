@@ -243,7 +243,7 @@ func TestSQLite(t *testing.T) {
 func openDB(database string) (*sql.DB, error) {
 	switch database {
 	case "mysql":
-		return sql.Open("mysql", "root@/test")
+		return sql.Open("mysql", "root@/test?multiStatements=true")
 	case "postgres":
 		return sql.Open("pgx", "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 	case "sqlite3":
@@ -255,18 +255,22 @@ func openDB(database string) (*sql.DB, error) {
 	}
 }
 
-func setTransactionIsolationLevel(database string, level string) string {
+func startTransaction(database string, level string) string {
 	switch database {
 	case "mysql":
-		fallthrough
+		// SET TRANSACTIONは次のトランザクションの分離レベルを変更
+		// BEGINでは指定できない
+		return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN", level)
+		// BEGINで指定できる
+		// SET TRANSACTIONは現在のトランザクションの分離レベルを変更
 	case "postgres":
-		return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s", level)
+		return fmt.Sprintf("BEGIN TRANSACTION ISOLATION LEVEL %s", level)
 	case "sqlite3":
 		if level == "READ UNCOMMITTED" {
-			return "PRAGMA read_uncommitted = true"
+			return "PRAGMA read_uncommitted = true; BEGIN"
 		}
 
-		return "SELECT 1" // dummy
+		return "BEGIN"
 	default:
 		panic(fmt.Errorf("unknown database: %s", database))
 	}
@@ -334,14 +338,14 @@ func Test(t *testing.T) {
 				name:     "lock w/ transaction",
 				txs: [][]transactonstest.Query{
 					{
-						// {Query: setTransactionIsolationLevel(database)},
+						// {Query: startTransaction(database)},
 						{Query: "BEGIN"},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "UPDATE foo SET value = 40 WHERE id = 3"},
 						{Query: "COMMIT"},
 					},
 					{
-						// {Query: setTransactionIsolationLevel(database)},
+						// {Query: startTransaction(database)},
 						{Query: "BEGIN"},
 						{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
 						{Query: "UPDATE foo SET value = 400 WHERE id = 3"},
@@ -376,20 +380,18 @@ func Test(t *testing.T) {
 				name:     "select w/ transaction before commit, READ COMMITTED",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "READ COMMITTED")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "READ COMMITTED")},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "READ COMMITTED")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "READ COMMITTED")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)}, // no dirty read
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"},
-				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"},
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"},
+				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"},
 				skip:       func(d string) bool { return d == "sqlite3" }(database),
 			},
 			{
@@ -397,14 +399,12 @@ func Test(t *testing.T) {
 				name:     "select w/ transaction before commit, READ UNCOMMITTED",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "READ UNCOMMITTED")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "READ UNCOMMITTED")},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "READ UNCOMMITTED")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "READ UNCOMMITTED")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string) *sql.NullInt64 {
 							if d == "postgres" {
 								return newNullInt(2) // postgres's READ UNCOMMITTED is READ COMMITTED, so no dirty read
@@ -417,13 +417,13 @@ func Test(t *testing.T) {
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"},
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"},
 				wantEnds: func(d string) []string {
 					if d == "sqlite3" {
-						// tx0:COMMIT will be locked
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3", "0:3"}
+						// tx0:COMMIT will be locked ?
+						return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2"}
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"}
+					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"}
 				}(database),
 			},
 			{
@@ -431,35 +431,31 @@ func Test(t *testing.T) {
 				name:     "select w/ transaction before commit, REPEATABLE READ",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "REPEATABLE READ")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "REPEATABLE READ")},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "REPEATABLE READ")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "REPEATABLE READ")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"},
-				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"},
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"},
+				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"},
 				skip:       func(d string) bool { return d == "sqlite3" }(database),
 			},
 			{
 				database: database,
-				name:     "select w/ transaction before commit",
+				name:     "select w/ transaction before commit, SERIALIZABLE",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "SERIALIZABLE")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "SERIALIZABLE")},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 						{Query: "COMMIT"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "SERIALIZABLE")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "SERIALIZABLE")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string) *sql.NullInt64 {
 							if d == "mysql" {
 								return newNullInt(20) // locked and read committed value
@@ -470,17 +466,17 @@ func Test(t *testing.T) {
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"},
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"},
 				wantEnds: func(d string) []string {
 					if d == "sqlite3" {
-						// tx0:COMMIT will be locked
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3", "0:3"}
+						// tx0:COMMIT will be locked ?
+						return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "0:2"}
 					}
 					if d == "mysql" {
 						// tx1: SELECT will be locked
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "0:3", "1:2", "1:3"}
+						return []string{"0:0", "1:0", "0:1", "0:2", "1:1", "1:2"}
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3"}
+					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2"}
 				}(database),
 			},
 
@@ -492,48 +488,39 @@ func Test(t *testing.T) {
 				name:     "select w/ transaction after commit, REPEATABLE READ",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "REPEATABLE READ")},
 						{Query: "SELECT 1"},
 						{Query: "SELECT 1"},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "REPEATABLE READ")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "REPEATABLE READ")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
-						{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string) *sql.NullInt64 {
-							if d == "postgres" {
-								return newNullInt(20) // postgres can't block read skew ?
-							}
-							return newNullInt(2)
-						}(database)},
+						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3", "1:4"},
-				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3", "1:4"}, // no lock
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3"},
+				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3"}, // no lock
 				skip:       func(d string) bool { return d == "sqlite3" }(database),
 			},
 			{
 				database: database,
-				name:     "select w/ transaction after commit, READ UNCOMMITTED",
+				name:     "select w/ transaction after commit, READ COMMITTED",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "READ UNCOMMITTED")},
 						{Query: "SELECT 1"},
 						{Query: "SELECT 1"},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "READ UNCOMMITTED")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "READ COMMITTED")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(20)}, // can't block read skew
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3", "1:4"},
-				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3", "1:4"},
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3"},
+				wantEnds:   []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3"},
 				skip:       func(d string) bool { return d == "sqlite3" }(database),
 			},
 			{
@@ -541,30 +528,23 @@ func Test(t *testing.T) {
 				name:     "select w/ transaction after commit, SERIALIZABLE",
 				txs: [][]transactonstest.Query{
 					{
-						{Query: setTransactionIsolationLevel(database, "SERIALIZABLE")},
 						{Query: "SELECT 1"},
 						{Query: "SELECT 1"},
 						{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 					},
 					{
-						{Query: setTransactionIsolationLevel(database, "SERIALIZABLE")},
-						{Query: "BEGIN"},
+						{Query: startTransaction(database, "SERIALIZABLE")},
 						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
-						{Query: "SELECT value FROM foo WHERE id = 1", Want: func(d string) *sql.NullInt64 {
-							if d == "postgres" {
-								return newNullInt(20) // postgres can't block read skew
-							}
-							return newNullInt(2)
-						}(database)},
+						{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInt(2)},
 						{Query: "ROLLBACK"},
 					},
 				},
-				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3", "1:4"},
+				wantStarts: []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3"},
 				wantEnds: func(d string) []string {
 					if d == "postgres" {
-						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "0:3", "1:3", "1:4"}
+						return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3"} // no lock, same as REPEATABLE READ
 					}
-					return []string{"0:0", "1:0", "0:1", "1:1", "0:2", "1:2", "1:3", "1:4", "0:3"} // update is locked
+					return []string{"0:0", "1:0", "0:1", "1:1", "1:2", "1:3", "0:2"} // update is locked
 				}(database),
 			},
 		}...)
