@@ -502,7 +502,7 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // unrelated but just start actual transaction
+				{Query: "SELECT count(*) FROM foo WHERE id < 3", Want: newNullInts(1)},
 				{Query: "SELECT count(*) FROM foo WHERE id < 3", WantOK: newNullInts(1), WantNG: newNullInts(2)},
 				{Query: "ROLLBACK"},
 			},
@@ -516,8 +516,6 @@ var specs = []spec{
 		},
 	},
 	{
-		// note: Postgresでは集約関数でSELECT...FORは使えない
-		// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
 		Name: "phantom read with locking read",
 		Txs: [][]query{
 			{
@@ -527,13 +525,15 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // unrelated but just start actual transaction
-				{Query: "SELECT id FROM foo WHERE id < 3 FOR UPDATE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
+				{Query: "SELECT count(*) FROM foo WHERE id < 3", Want: newNullInts(1)},
+				// note: Postgresでは集約関数でSELECT...FORは使えない
+				// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
+				{Query: "SELECT id FROM foo WHERE id < 3 FOR SHARE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
 				{Query: "ROLLBACK"},
 			},
 		},
 		Threshold: map[string]string{
-			MYSQL: SERIALIZABLE,
+			MYSQL: SERIALIZABLE, // SELECT ... FOR SHAREはREPEATABLE_READでもスナップショットを読まないのでファントムが現れる
 			"*":   REPEATABLE_READ,
 		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
@@ -610,14 +610,12 @@ var specs = []spec{
 		},
 		Threshold: map[string]string{"*": SERIALIZABLE},
 		WantStarts: map[string][]string{
-			MYSQL + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "b:4"}, // 1:update is locked
-			MYSQL + ":" + SERIALIZABLE:    genSeq(5, 3),
-			"*":                           genSeq(5, 5),
+			MYSQL + ":" + SERIALIZABLE: genSeq(5, 3),
+			"*":                        genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4", "b:2", "b:3", "b:4"}, // 1:update is locked
-			MYSQL + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},               // query 0:2 is locked, query1:2 crashes
-			"*":                           genSeq(5, 5),
+			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
+			"*":                        genSeq(5, 5),
 		},
 		skip: func(d string, l string) bool { return d == SQLITE && l == SERIALIZABLE }, // "database is locked" won't finish transaction ?
 	},
@@ -698,7 +696,7 @@ func Test(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT, value INT)")
+			_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -505,10 +505,10 @@
           "WantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 3",
+          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
           "Want": [
             {
-              "Int64": 4,
+              "Int64": 1,
               "Valid": true
             }
           ],
@@ -621,10 +621,10 @@
           "WantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 3",
+          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
           "Want": [
             {
-              "Int64": 4,
+              "Int64": 1,
               "Valid": true
             }
           ],
@@ -633,7 +633,7 @@
           "WantErr": null
         },
         {
-          "Query": "SELECT id FROM foo WHERE id \u003c 3 FOR UPDATE",
+          "Query": "SELECT id FROM foo WHERE id \u003c 3 FOR SHARE",
           "Want": null,
           "WantOK": [
             {
@@ -1018,18 +1018,6 @@
         "a:4",
         "b:4"
       ],
-      "mysql:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4",
-        "b:3",
-        "b:4"
-      ],
       "mysql:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -1052,18 +1040,6 @@
         "a:3",
         "b:3",
         "a:4",
-        "b:4"
-      ],
-      "mysql:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "a:4",
-        "b:2",
-        "b:3",
         "b:4"
       ],
       "mysql:SERIALIZABLE": [
