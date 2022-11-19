@@ -354,19 +354,19 @@ func genSeq(m, n int) []string {
 }
 
 type query struct {
-	Query   string
-	Want    []sql.NullInt64
-	WantOK  []sql.NullInt64
-	WantNG  []sql.NullInt64
-	WantErr map[string]string
+	Query   string            `json:"query"`
+	Want    []sql.NullInt64   `json:"want"`
+	WantOK  []sql.NullInt64   `json:"wantOk"`
+	WantNG  []sql.NullInt64   `json:"wantNg"`
+	WantErr map[string]string `json:"wantErr"`
 }
 
 type spec struct {
-	Name       string
-	Txs        [][]query
-	Threshold  map[string]string
-	WantStarts map[string][]string
-	WantEnds   map[string][]string
+	Name       string              `json:"name"`
+	Txs        [][]query           `json:"txs"`
+	Threshold  map[string]string   `json:"threshold"`
+	WantStarts map[string][]string `json:"wantStarts"`
+	WantEnds   map[string][]string `json:"wantEnds"`
 	skip       func(database string, level string) bool
 }
 

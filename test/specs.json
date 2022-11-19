@@ -1,75 +1,75 @@
 [
   {
-    "Name": "dirty write",
-    "Txs": [
+    "name": "dirty write",
+    "txs": [
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 20,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 200,
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 200 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 200 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "READ UNCOMMITTED"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -89,7 +89,7 @@
         "a:3"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -111,70 +111,70 @@
     }
   },
   {
-    "Name": "dirty read",
-    "Txs": [
+    "name": "dirty read",
+    "txs": [
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 20,
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "READ COMMITTED",
       "postgres": "READ UNCOMMITTED"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -184,7 +184,7 @@
         "b:2"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -212,81 +212,81 @@
     }
   },
   {
-    "Name": "fuzzy read",
-    "Txs": [
+    "name": "fuzzy read",
+    "txs": [
       [
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 20,
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "REPEATABLE READ"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -297,7 +297,7 @@
         "b:3"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -328,85 +328,85 @@
     }
   },
   {
-    "Name": "fuzzy read with locking read",
-    "Txs": [
+    "name": "fuzzy read with locking read",
+    "txs": [
       [
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1 FOR SHARE",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT value FROM foo WHERE id = 1 FOR SHARE",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 20,
               "Valid": true
             }
           ],
-          "WantErr": {
+          "wantErr": {
             "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
             "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
           }
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "REPEATABLE READ",
       "mysql": "SERIALIZABLE"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -433,7 +433,7 @@
         "b:2"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -471,81 +471,81 @@
     }
   },
   {
-    "Name": "phantom read",
-    "Txs": [
+    "name": "phantom read",
+    "txs": [
       [
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "INSERT INTO foo VALUES (2, 20)",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "INSERT INTO foo VALUES (2, 20)",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
-          "Want": [
+          "query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "want": [
             {
               "Int64": 1,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 1,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "REPEATABLE READ"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -556,7 +556,7 @@
         "b:3"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -587,61 +587,61 @@
     }
   },
   {
-    "Name": "phantom read with locking read",
-    "Txs": [
+    "name": "phantom read with locking read",
+    "txs": [
       [
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "INSERT INTO foo VALUES (2, 20)",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "INSERT INTO foo VALUES (2, 20)",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT count(*) FROM foo WHERE id \u003c 3",
-          "Want": [
+          "query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "want": [
             {
               "Int64": 1,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT id FROM foo WHERE id \u003c 3 FOR SHARE",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT id FROM foo WHERE id \u003c 3 FOR SHARE",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 1,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 1,
               "Valid": true
@@ -651,22 +651,22 @@
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         },
         {
-          "Query": "ROLLBACK",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "REPEATABLE READ",
       "mysql": "SERIALIZABLE"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -677,7 +677,7 @@
         "b:3"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -699,117 +699,117 @@
     }
   },
   {
-    "Name": "lost update",
-    "Txs": [
+    "name": "lost update",
+    "txs": [
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "COMMIT",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": null,
-          "WantOK": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": [
             {
               "Int64": 20,
               "Valid": true
             }
           ],
-          "WantNG": [
+          "wantNg": [
             {
               "Int64": 200,
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 200 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": {
+          "query": "UPDATE foo SET value = 200 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": {
             "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
             "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
           }
         },
         {
-          "Query": "COMMIT",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
             {
               "Int64": 200,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "SERIALIZABLE",
       "postgres": "REPEATABLE READ"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -843,7 +843,7 @@
         "a:4"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
@@ -901,111 +901,111 @@
     }
   },
   {
-    "Name": "write skew",
-    "Txs": [
+    "name": "write skew",
+    "txs": [
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
             {
               "Int64": 2,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 20 WHERE id = 3",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "UPDATE foo SET value = 20 WHERE id = 3",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 3",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 3",
+          "want": [
             {
               "Int64": 20,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "COMMIT",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         }
       ],
       [
         {
-          "Query": "BEGIN",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 3",
-          "Want": [
+          "query": "SELECT value FROM foo WHERE id = 3",
+          "want": [
             {
               "Int64": 4,
               "Valid": true
             }
           ],
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": null
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
         },
         {
-          "Query": "UPDATE foo SET value = 40 WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": {
+          "query": "UPDATE foo SET value = 40 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": {
             "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction"
           }
         },
         {
-          "Query": "SELECT value FROM foo WHERE id = 1",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": [
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": [
             {
               "Int64": 40,
               "Valid": true
             }
           ],
-          "WantErr": null
+          "wantErr": null
         },
         {
-          "Query": "COMMIT",
-          "Want": null,
-          "WantOK": null,
-          "WantNG": null,
-          "WantErr": {
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": {
             "postgres:SERIALIZABLE": "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)"
           }
         }
       ]
     ],
-    "Threshold": {
+    "threshold": {
       "*": "SERIALIZABLE"
     },
-    "WantStarts": {
+    "wantStarts": {
       "*": [
         "a:0",
         "b:0",
@@ -1029,7 +1029,7 @@
         "a:4"
       ]
     },
-    "WantEnds": {
+    "wantEnds": {
       "*": [
         "a:0",
         "b:0",
