@@ -142,7 +142,7 @@ function convertTxs(
 function getValue<T>(
   map: Record<string, T | undefined> & { "*": T },
   k1: string,
-  k2?: string,
+  k2?: string
 ): T {
   return map[`${k1}:${k2}`] || map[k1] || (k2 && map[k2]) || map["*"];
 }
@@ -256,30 +256,38 @@ const Anomaly: React.FC<Spec> = ({
   <div>
     <h2>{name}</h2>
     {levels.map((level) => {
-      const ok = levelInt[level] >= levelInt[getValue(threshold, database)];
-
-      const rows = convertTxs(
-        txs,
-        getValue(wantStarts, database, level),
-        getValue(wantEnds, database, level)
-      );
-
       return (
         <div key={name}>
-          <h3>
-            {level}: {ok ? "OK" : "NG"}
-          </h3>
-          <div>{JSON.stringify(threshold)}</div>
-          <div>{JSON.stringify(wantStarts)}</div>
-          <div>{getValue(wantStarts, database, level).join(", ")}</div>
-          <div>{getValue(wantEnds, database, level).join(", ")}</div>
-          <table border={1}>
-            <tbody>
-              {rows.map((steps, i) => (
-                <Row key={i} level={level} ok={ok} steps={steps} />
-              ))}
-            </tbody>
-          </table>
+          <h3>{level}</h3>
+          {databases.map((database) => {
+            const ok =
+              levelInt[level] >= levelInt[getValue(threshold, database)];
+
+            const rows = convertTxs(
+              txs,
+              getValue(wantStarts, database, level),
+              getValue(wantEnds, database, level)
+            );
+
+            return (
+              <div key={database}>
+                <h4>
+                  {database}: {ok ? "OK" : "NG"}
+                </h4>
+                <div>{JSON.stringify(threshold)}</div>
+                <div>{JSON.stringify(wantStarts)}</div>
+                <div>{getValue(wantStarts, database, level).join(", ")}</div>
+                <div>{getValue(wantEnds, database, level).join(", ")}</div>
+                <table border={1}>
+                  <tbody>
+                    {rows.map((steps, i) => (
+                      <Row key={i} level={level} ok={ok} steps={steps} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       );
     })}
