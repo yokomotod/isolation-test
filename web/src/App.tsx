@@ -225,13 +225,15 @@ function App() {
                             : "red",
                         }}
                       >
-                        {ok
-                          ? err
-                            ? "err"
-                            : locked
-                            ? "with lock"
-                            : "ok"
-                          : "ng"}
+                        <a href={`#${spec.name}-${database}-${level}`}>
+                          {ok
+                            ? err
+                              ? "ERROR"
+                              : locked
+                              ? "LOCK"
+                              : "OK"
+                            : "NG"}
+                        </a>
                       </td>
                     );
                   })}
@@ -270,7 +272,7 @@ const Anomaly: React.FC<Spec> = ({
             );
 
             return (
-              <div key={database}>
+              <div key={database} id={`${name}-${database}-${level}`}>
                 <h4>
                   {database}: {ok ? "OK" : "NG"}
                 </h4>
