@@ -517,8 +517,13 @@
     "txs": [
       [
         {
-          "query": "",
-          "want": null,
+          "query": "SELECT count(*) FROM foo",
+          "want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -834,7 +839,7 @@
             "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
             "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-            "sqlserver:SNAPSHOT": "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'master' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement."
+            "sqlserver:SNAPSHOT": "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement."
           }
         },
         {

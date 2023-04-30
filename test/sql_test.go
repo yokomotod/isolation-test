@@ -249,26 +249,42 @@ const (
 	SQLSERVER = "sqlserver"
 	SQLITE    = "sqlite"
 
-	NO_TRANSACTION   = "NO TRANSACTION"
-	READ_UNCOMMITTED = "READ UNCOMMITTED"
-	READ_COMMITTED   = "READ COMMITTED"
-	REPEATABLE_READ  = "REPEATABLE READ"
-	SNAPSHOT         = "SNAPSHOT"
-	SERIALIZABLE     = "SERIALIZABLE"
+	NO_TRANSACTION          = "NO TRANSACTION"
+	READ_UNCOMMITTED        = "READ UNCOMMITTED"
+	READ_COMMITTED          = "READ COMMITTED"
+	READ_COMMITTED_SNAPSHOT = "READ COMMITTED (SNAPSHOT)"
+	REPEATABLE_READ         = "REPEATABLE READ"
+	SNAPSHOT                = "SNAPSHOT"
+	SERIALIZABLE            = "SERIALIZABLE"
 )
 
 var databases = []string{MYSQL, POSTGRES, SQLSERVER, SQLITE}
 var dbLevels = map[string][]string{
-	SQLSERVER: {NO_TRANSACTION, READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SNAPSHOT, SERIALIZABLE},
-	"*":       {NO_TRANSACTION, READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE},
+	SQLSERVER: {
+		NO_TRANSACTION,
+		READ_UNCOMMITTED,
+		READ_COMMITTED,
+		READ_COMMITTED_SNAPSHOT,
+		REPEATABLE_READ,
+		SNAPSHOT,
+		SERIALIZABLE,
+	},
+	"*": {
+		NO_TRANSACTION,
+		READ_UNCOMMITTED,
+		READ_COMMITTED,
+		REPEATABLE_READ,
+		SERIALIZABLE,
+	},
 }
 var levelInt = map[string]int{
-	NO_TRANSACTION:   0,
-	READ_UNCOMMITTED: 1,
-	READ_COMMITTED:   2,
-	REPEATABLE_READ:  3,
-	SNAPSHOT:         4,
-	SERIALIZABLE:     5,
+	NO_TRANSACTION:          0,
+	READ_UNCOMMITTED:        1,
+	READ_COMMITTED:          2,
+	READ_COMMITTED_SNAPSHOT: 3,
+	REPEATABLE_READ:         4,
+	SNAPSHOT:                5,
+	SERIALIZABLE:            6,
 }
 
 func openDB(database string) (*sql.DB, error) {
@@ -278,7 +294,13 @@ func openDB(database string) (*sql.DB, error) {
 	case POSTGRES:
 		return sql.Open("pgx", "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 	case SQLSERVER:
-		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;")
+		// `CREATE DATABASE test` が必要
+		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test;")
+	case SQLSERVER + "_snapshot":
+		// `CREATE DATABASE test2` が必要
+		// `ALTER DATABASE test2 SET ALLOW_SNAPSHOT_ISOLATION ON`
+		// `ALTER DATABASE test2 SET READ_COMMITTED_SNAPSHOT ON``
+		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test2;")
 	case SQLITE:
 		// return sql.Open("sqlite3", "file::memory:?cache=shared&_busy_timeout=5000")
 		// return sql.Open("sqlite3", "file::memory:?cache=shared")
@@ -303,6 +325,9 @@ func startTransaction(database string, level string) string {
 	case POSTGRES:
 		return fmt.Sprintf("BEGIN TRANSACTION ISOLATION LEVEL %s", level)
 	case SQLSERVER:
+		if level == READ_COMMITTED_SNAPSHOT {
+			return "SET TRANSACTION ISOLATION LEVEL READ COMMITTED; BEGIN TRANSACTION"
+		}
 		return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN TRANSACTION", level)
 	case SQLITE:
 		if level == "READ UNCOMMITTED" {
@@ -520,7 +545,8 @@ var specs = []spec{
 		Name: "phantom read",
 		Txs: [][]query{
 			{
-				{},
+				// {},
+				{Query: "SELECT count(*) FROM foo", Want: newNullInts(2)},
 				{},
 				{Query: "INSERT INTO foo VALUES (2, 20)"},
 			},
@@ -586,7 +612,7 @@ var specs = []spec{
 					MYSQL + ":" + SERIALIZABLE:       "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
 					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'master' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
+					SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
 				}},
 				{Query: "COMMIT"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
@@ -725,7 +751,13 @@ func Test(t *testing.T) {
 			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Second))
 			defer cancel()
 
-			db, err := openDB(tt.database)
+			var db *sql.DB
+			if tt.level == READ_COMMITTED_SNAPSHOT {
+				db, err = openDB(tt.database + "_snapshot")
+
+			} else {
+				db, err = openDB(tt.database)
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -737,14 +769,41 @@ func Test(t *testing.T) {
 			}
 			defer conn.Close()
 
+			// _, err = conn.ExecContext(ctx, "DROP DATABASE IF EXISTS test")
+			// if err != nil {
+			// 	t.Fatal(err)
+			// }
+			// _, err = conn.ExecContext(ctx, "CREATE DATABASE test")
+			// if err != nil {
+			// 	t.Fatal(err)
+			// }
+			// _, err = conn.ExecContext(ctx, "USE test")
+			// if err != nil {
+			// 	t.Fatal(err)
+			// }
+			// if tt.database == SQLSERVER {
+			// 	v := "OFF"
+			// 	if tt.level == READ_COMMITTED_SNAPSHOT {
+			// 		v = "ON"
+			// 	}
+			// 	sql := fmt.Sprintf("ALTER DATABASE test SET READ_COMMITTED_SNAPSHOT %s", v)
+			// 	fmt.Println(sql)
+			// 	_, err = conn.ExecContext(ctx, sql)
+			// 	if err != nil {
+			// 		t.Fatal(err)
+			// 	}
+			// }
+			fmt.Println("DROP TABLE IF EXISTS foo")
 			_, err = conn.ExecContext(ctx, "DROP TABLE IF EXISTS foo")
 			if err != nil {
 				t.Fatal(err)
 			}
+			fmt.Println("CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
 			_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
 			if err != nil {
 				t.Fatal(err)
 			}
+			fmt.Println("INSERT INTO foo VALUES (1, 2), (3, 4)")
 			_, err = conn.ExecContext(ctx, "INSERT INTO foo VALUES (1, 2), (3, 4)")
 			if err != nil {
 				t.Fatal(err)

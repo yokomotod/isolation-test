@@ -94,15 +94,22 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 				ch <- struct{}{} // 結果を待つために同期
 				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
 				if err != nil {
-					if q.WantErr != "" && err.Error() == q.WantErr {
-						// ok, but break
-						logger.Printf("(go %d) err   %s<[%d] %s\n", goID, ab[i], j, err)
-					} else if err == sql.ErrNoRows && q.Want == nil && q.WantErr == "" {
+					if q.WantErr != "" {
+						if err.Error() == q.WantErr {
+							// ok, but break
+							logger.Printf("(go %d) err   %s<[%d] %s\n", goID, ab[i], j, err)
+						} else {
+							fmt.Println("error mismatch")
+							fmt.Println(q.WantErr)
+							fmt.Println(err)
+							panic(err)
+						}
+					} else if err == sql.ErrNoRows && q.Want == nil {
 						// ok
 					} else {
 						// fmt.Printf("%#v\n", err)
 						// t.Error(err)
-						fmt.Println(q.WantErr)
+						fmt.Println("unexpected error")
 						fmt.Println(err)
 						panic(err)
 					}
