@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/microsoft/go-mssqldb"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yokomotod/zakodb/pkg/transactonstest"
@@ -243,25 +244,31 @@ func TestSQLite(t *testing.T) {
 }
 
 const (
-	MYSQL    = "mysql"
-	POSTGRES = "postgres"
-	SQLITE   = "sqlite"
+	MYSQL     = "mysql"
+	POSTGRES  = "postgres"
+	SQLSERVER = "sqlserver"
+	SQLITE    = "sqlite"
 
 	NO_TRANSACTION   = "NO TRANSACTION"
 	READ_UNCOMMITTED = "READ UNCOMMITTED"
 	READ_COMMITTED   = "READ COMMITTED"
 	REPEATABLE_READ  = "REPEATABLE READ"
+	SNAPSHOT         = "SNAPSHOT"
 	SERIALIZABLE     = "SERIALIZABLE"
 )
 
-var databases = []string{MYSQL, POSTGRES, SQLITE}
-var levels = []string{NO_TRANSACTION, READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE}
+var databases = []string{MYSQL, POSTGRES, SQLSERVER, SQLITE}
+var dbLevels = map[string][]string{
+	SQLSERVER: {NO_TRANSACTION, READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SNAPSHOT, SERIALIZABLE},
+	"*":       {NO_TRANSACTION, READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE},
+}
 var levelInt = map[string]int{
 	NO_TRANSACTION:   0,
 	READ_UNCOMMITTED: 1,
 	READ_COMMITTED:   2,
 	REPEATABLE_READ:  3,
-	SERIALIZABLE:     4,
+	SNAPSHOT:         4,
+	SERIALIZABLE:     5,
 }
 
 func openDB(database string) (*sql.DB, error) {
@@ -270,6 +277,8 @@ func openDB(database string) (*sql.DB, error) {
 		return sql.Open("mysql", "root@/test?multiStatements=true")
 	case POSTGRES:
 		return sql.Open("pgx", "postgres://postgres:postgres@127.0.0.1:5432/postgres")
+	case SQLSERVER:
+		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;")
 	case SQLITE:
 		// return sql.Open("sqlite3", "file::memory:?cache=shared&_busy_timeout=5000")
 		// return sql.Open("sqlite3", "file::memory:?cache=shared")
@@ -293,6 +302,8 @@ func startTransaction(database string, level string) string {
 		// SET TRANSACTIONは現在のトランザクションの分離レベルを変更
 	case POSTGRES:
 		return fmt.Sprintf("BEGIN TRANSACTION ISOLATION LEVEL %s", level)
+	case SQLSERVER:
+		return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN TRANSACTION", level)
 	case SQLITE:
 		if level == "READ UNCOMMITTED" {
 			return "PRAGMA read_uncommitted = true; BEGIN"
@@ -304,17 +315,25 @@ func startTransaction(database string, level string) string {
 	}
 }
 
-func commit(level string) string {
+func commit(database string, level string) string {
 	if level == NO_TRANSACTION {
 		return "SELECT 1"
+	}
+
+	if database == SQLSERVER {
+		return "COMMIT TRANSACTION"
 	}
 
 	return "COMMIT"
 }
 
-func rollback(level string) string {
+func rollback(database string, level string) string {
 	if level == NO_TRANSACTION {
 		return "SELECT 1"
+	}
+
+	if database == SQLSERVER {
+		return "ROLLBACK TRANSACTION"
 	}
 
 	return "ROLLBACK"
@@ -420,8 +439,11 @@ var specs = []spec{
 			NO_TRANSACTION: genSeq(3, 3),
 			// 変な挙動だったのがなんか急に起こらなくなった
 			// SQLITE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}, // tx0:COMMIT will be locked ?
-			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
-			"*":                        genSeq(3, 3),
+			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			"*":                               genSeq(3, 3),
 		},
 	},
 
@@ -449,9 +471,11 @@ var specs = []spec{
 		Threshold:  map[string]string{"*": REPEATABLE_READ},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
-			SQLITE + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
-			"*":                         genSeq(3, 4),
+			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			SQLITE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			"*":                               genSeq(3, 4),
 		},
 	},
 	{
@@ -489,7 +513,7 @@ var specs = []spec{
 			POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3),                                      // 2nd SELECT crashes
 			"*":                              genSeq(3, 4),
 		},
-		skip: func(d string, l string) bool { return d == "sqlite" }, // sqlite doesn't support SELECT ... FOR
+		skip: func(d string, l string) bool { return d == SQLITE || d == SQLSERVER }, // sqlite doesn't support SELECT ... FOR
 	},
 
 	{
@@ -507,12 +531,13 @@ var specs = []spec{
 				{Query: "ROLLBACK"},
 			},
 		},
-		Threshold:  map[string]string{"*": REPEATABLE_READ},
+		Threshold:  map[string]string{"*": REPEATABLE_READ, SQLSERVER: SNAPSHOT},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:  {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			SQLITE + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			"*":                         genSeq(3, 4),
+			MYSQL + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			SQLSERVER + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			SQLITE + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			"*":                            genSeq(3, 4),
 		},
 	},
 	{
@@ -541,7 +566,7 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			"*":                        genSeq(3, 4),
 		},
-		skip: func(d string, l string) bool { return d == "sqlite" }, // sqlite doesn't support SELECT ... FOR
+		skip: func(d string, l string) bool { return d == SQLITE || d == SQLSERVER }, // sqlite doesn't support SELECT ... FOR
 	},
 
 	{
@@ -561,18 +586,22 @@ var specs = []spec{
 					MYSQL + ":" + SERIALIZABLE:       "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
 					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'master' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
 				}},
 				{Query: "COMMIT"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
 			},
 		},
 		Threshold: map[string]string{
-			POSTGRES: REPEATABLE_READ,
-			"*":      SERIALIZABLE,
+			// SQLSERVER: READ_UNCOMMITTED,
+			POSTGRES:  REPEATABLE_READ,
+			SQLSERVER: SNAPSHOT,
+			"*":       SERIALIZABLE,
 		},
 		WantStarts: map[string][]string{
 			SERIALIZABLE:                     genSeq(5, 3),
 			POSTGRES + ":" + REPEATABLE_READ: genSeq(5, 3),
+			SQLSERVER + ":" + SNAPSHOT:       genSeq(5, 3),
 			"*":                              genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
@@ -580,9 +609,15 @@ var specs = []spec{
 			SERIALIZABLE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
 			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
 			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
+			SQLSERVER + ":" + SNAPSHOT:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
 			"*":                              {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 		},
-		skip: func(d string, l string) bool { return d == SQLITE && l == SERIALIZABLE }, // "database is locked" won't finish transaction ?
+		skip: func(d string, l string) bool {
+			// "database is locked" won't finish transaction ?
+			return d == SQLITE && l == SERIALIZABLE ||
+				// dead lock
+				d == SQLSERVER && (l == REPEATABLE_READ || l == SERIALIZABLE)
+		},
 	},
 
 	{
@@ -617,7 +652,12 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
 			"*":                        genSeq(5, 5),
 		},
-		skip: func(d string, l string) bool { return d == SQLITE && l == SERIALIZABLE }, // "database is locked" won't finish transaction ?
+		skip: func(d string, l string) bool {
+			// "database is locked" won't finish transaction ?
+			return d == SQLITE && l == SERIALIZABLE ||
+				// dead lock
+				d == SQLSERVER && (l == REPEATABLE_READ || l == SERIALIZABLE)
+		},
 	},
 }
 
@@ -646,6 +686,11 @@ func Test(t *testing.T) {
 	tests := make([]test, 0)
 
 	for _, database := range databases {
+		levels := dbLevels["*"]
+		if v, ok := dbLevels[database]; ok {
+			levels = v
+		}
+
 		for _, level := range levels {
 			for _, spec := range specs {
 				skip := false
@@ -721,9 +766,9 @@ func Test(t *testing.T) {
 					} else if query == "BEGIN" {
 						query = startTransaction(tt.database, tt.level)
 					} else if query == "COMMIT" {
-						query = commit(tt.level)
+						query = commit(tt.database, tt.level)
 					} else if query == "ROLLBACK" {
-						query = rollback(tt.level)
+						query = rollback(tt.database, tt.level)
 					}
 
 					want := q.Want
