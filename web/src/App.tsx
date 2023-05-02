@@ -1,13 +1,13 @@
 import "./App.css";
 import specs from "../../test/specs.json";
 
-const MYSQL = "mysql";
 const POSTGRES = "postgres";
+const MYSQL = "mysql";
 const SQLSERVER = "sqlserver";
 const SQLITE = "sqlite";
 const databases = [
-  MYSQL,
   POSTGRES,
+  MYSQL,
   SQLSERVER,
   // SQLITE,
 ] as const;
@@ -16,6 +16,7 @@ type Database = typeof database;
 const NO_TRANSACTION = "NO TRANSACTION";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
 const READ_COMMITTED = "READ COMMITTED";
+const READ_COMMITTED_SNAPSHOT = "READ COMMITTED (SNAPSHOT)";
 const REPEATABLE_READ = "REPEATABLE READ";
 const SNAPSHOT = "SNAPSHOT READ";
 const SERIALIZABLE = "SERIALIZABLE";
@@ -24,6 +25,7 @@ const levels = [
   NO_TRANSACTION,
   READ_UNCOMMITTED,
   READ_COMMITTED,
+  READ_COMMITTED_SNAPSHOT,
   REPEATABLE_READ,
   SNAPSHOT,
   SERIALIZABLE,
@@ -34,9 +36,10 @@ const levelInt: Record<string, number> = {
   [NO_TRANSACTION]: 0,
   [READ_UNCOMMITTED]: 1,
   [READ_COMMITTED]: 2,
-  [REPEATABLE_READ]: 3,
-  [SNAPSHOT]: 4,
-  [SERIALIZABLE]: 5,
+  [READ_COMMITTED_SNAPSHOT]: 3,
+  [REPEATABLE_READ]: 4,
+  [SNAPSHOT]: 5,
+  [SERIALIZABLE]: 6,
 };
 
 type Tx = {
@@ -191,23 +194,23 @@ function App() {
           <tr>
             <th></th>
             <th></th>
-            {levels.map((level) => (
-              <th>{level}</th>
+            {specs.map((spec) => (
+              <th>{spec.name}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {specs.map((spec) => (
-            <>
-              <tr>
-                <td rowSpan={databases.length + 1}>{spec.name}</td>
-              </tr>
-              {databases.map((database) => (
+          {databases.map((database) =>
+            levels.map((level) => {
+              if ([SNAPSHOT, READ_COMMITTED_SNAPSHOT].includes(level) && database !== SQLSERVER) {
+                return null;
+              }
+
+              return (
                 <tr>
                   <td>{database}</td>
-                  {levels.map((level) => {
-                    const na = level === SNAPSHOT && database !== SQLSERVER;
-
+                  <td>{level}</td>
+                  {specs.map((spec) => {
                     const ok =
                       levelInt[level] >=
                       levelInt[getValue(spec.threshold, database)];
@@ -223,7 +226,7 @@ function App() {
                     return (
                       <td
                         style={{
-                          backgroundColor: na ? "gray" : ok
+                          backgroundColor: ok
                             ? err
                               ? "yellow"
                               : locked
@@ -233,23 +236,15 @@ function App() {
                         }}
                       >
                         <a href={`#${spec.name}-${database}-${level}`}>
-                          {na
-                            ? "N/A"
-                            : ok
-                            ? err
-                              ? "ERROR"
-                              : locked
-                              ? "LOCK"
-                              : "OK"
-                            : "NG"}
+                          {ok ? (err ? "ERROR" : locked ? "LOCK" : "OK") : "NG"}
                         </a>
                       </td>
                     );
                   })}
                 </tr>
-              ))}
-            </>
-          ))}
+              );
+            })
+          )}
         </tbody>
       </table>
       {specs.map(Anomaly)}
