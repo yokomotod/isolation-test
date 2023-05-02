@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  mysql:
+    image: mysql:8.0.33
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: test
+      MYSQL_ALLOW_EMPTY_PASSWORD: "1"
+  postgres:
+    image: postgres:15.2
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: Passw0rd
