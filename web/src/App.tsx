@@ -3,10 +3,12 @@ import specs from "../../test/specs.json";
 
 const MYSQL = "mysql";
 const POSTGRES = "postgres";
+const SQLSERVER = "sqlserver";
 const SQLITE = "sqlite";
 const databases = [
   MYSQL,
   POSTGRES,
+  SQLSERVER,
   // SQLITE,
 ] as const;
 type Database = typeof database;
@@ -15,6 +17,7 @@ const NO_TRANSACTION = "NO TRANSACTION";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
 const READ_COMMITTED = "READ COMMITTED";
 const REPEATABLE_READ = "REPEATABLE READ";
+const SNAPSHOT = "SNAPSHOT READ";
 const SERIALIZABLE = "SERIALIZABLE";
 
 const levels = [
@@ -22,16 +25,18 @@ const levels = [
   READ_UNCOMMITTED,
   READ_COMMITTED,
   REPEATABLE_READ,
+  SNAPSHOT,
   SERIALIZABLE,
 ] as const;
-type Level = typeof levels[number];
+type Level = (typeof levels)[number];
 
 const levelInt: Record<string, number> = {
   [NO_TRANSACTION]: 0,
   [READ_UNCOMMITTED]: 1,
   [READ_COMMITTED]: 2,
   [REPEATABLE_READ]: 3,
-  [SERIALIZABLE]: 4,
+  [SNAPSHOT]: 4,
+  [SERIALIZABLE]: 5,
 };
 
 type Tx = {
@@ -195,12 +200,14 @@ function App() {
           {specs.map((spec) => (
             <>
               <tr>
-                <td rowSpan={3}>{spec.name}</td>
+                <td rowSpan={databases.length + 1}>{spec.name}</td>
               </tr>
               {databases.map((database) => (
                 <tr>
                   <td>{database}</td>
                   {levels.map((level) => {
+                    const na = level === SNAPSHOT && database !== SQLSERVER;
+
                     const ok =
                       levelInt[level] >=
                       levelInt[getValue(spec.threshold, database)];
@@ -216,7 +223,7 @@ function App() {
                     return (
                       <td
                         style={{
-                          backgroundColor: ok
+                          backgroundColor: na ? "gray" : ok
                             ? err
                               ? "yellow"
                               : locked
@@ -226,7 +233,9 @@ function App() {
                         }}
                       >
                         <a href={`#${spec.name}-${database}-${level}`}>
-                          {ok
+                          {na
+                            ? "N/A"
+                            : ok
                             ? err
                               ? "ERROR"
                               : locked
