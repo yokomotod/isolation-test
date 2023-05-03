@@ -558,7 +558,10 @@ var specs = []spec{
 				{Query: "ROLLBACK"},
 			},
 		},
-		Threshold:  map[string]string{"*": REPEATABLE_READ, SQLSERVER: SNAPSHOT},
+		Threshold: map[string]string{
+			SQLSERVER: SNAPSHOT,
+			"*":       REPEATABLE_READ,
+		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
 			MYSQL + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
