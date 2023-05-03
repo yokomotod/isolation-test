@@ -42,6 +42,12 @@ const levelInt: Record<string, number> = {
   [SERIALIZABLE]: 6,
 };
 
+const defaultLevel = {
+  [POSTGRES]: READ_COMMITTED,
+  [MYSQL]: REPEATABLE_READ,
+  [SQLSERVER]: READ_COMMITTED,
+}
+
 // TODO: "Read Committed" ほしい
 // TODO: "Cursor Stability" ほしい
 const models: Record<string, Record<string, string>> = {
@@ -256,10 +262,12 @@ function App() {
                 return null;
               }
 
+              const isDefault = defaultLevel[database] == level;
+
               return (
                 <tr>
                   <td>{database}</td>
-                  <td>{level}</td>
+                  <td>{level}{isDefault && "★"}</td>
                   <td>{models[database][level]}</td>
                   {orderedSpecs.map((spec) => {
                     const skip =
