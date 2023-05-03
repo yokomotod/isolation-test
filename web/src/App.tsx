@@ -4,16 +4,16 @@ import specs from "../../test/specs.json";
 const POSTGRES = "postgres";
 const MYSQL = "mysql";
 const SQLSERVER = "sqlserver";
-const SQLITE = "sqlite";
+// const SQLITE = "sqlite";
 const databases = [
   POSTGRES,
   MYSQL,
   SQLSERVER,
   // SQLITE,
 ] as const;
-type Database = typeof database;
+type Database = typeof POSTGRES | typeof MYSQL | typeof SQLSERVER;
 
-const NO_TRANSACTION = "NO TRANSACTION";
+const NO_TRANSACTION = "(NO TRANSACTION)";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
 const READ_COMMITTED = "READ COMMITTED";
 const READ_COMMITTED_SNAPSHOT = "READ COMMITTED (SNAPSHOT)";
@@ -41,6 +41,39 @@ const levelInt: Record<string, number> = {
   [SNAPSHOT]: 5,
   [SERIALIZABLE]: 6,
 };
+
+const models: Record<string, Record<string, string>> = {
+  [POSTGRES]: {
+    [READ_UNCOMMITTED]: "Monotonic Atomic View",
+    [READ_COMMITTED]: "Monotonic Atomic View",
+    [REPEATABLE_READ]: "Snapshot Isolation",
+    [SERIALIZABLE]: "Serializable",
+  },
+  [MYSQL]: {
+    [READ_UNCOMMITTED]: "Read Uncommitted",
+    [READ_COMMITTED]: "Monotonic Atomic View",
+    [REPEATABLE_READ]: "Monotonic Atomic View",
+    [SERIALIZABLE]: "Serializable",
+  },
+  [SQLSERVER]: {
+    [READ_UNCOMMITTED]: "Read Uncommitted",
+    [READ_COMMITTED]: "Monotonic Atomic View",
+    [READ_COMMITTED_SNAPSHOT]: "Monotonic Atomic View",
+    [REPEATABLE_READ]: "Repeatable Read",
+    [SNAPSHOT]: "Snapshot Isolation",
+    [SERIALIZABLE]: "Serializable",
+  },
+};
+
+const orderedSpecs: typeof specs = [];
+orderedSpecs.push(specs.find(({ name }) => name === "dirty write")!);
+orderedSpecs.push(specs.find(({ name }) => name === "dirty read")!);
+orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read")!);
+orderedSpecs.push(specs.find(({ name }) => name === "phantom read")!);
+orderedSpecs.push(specs.find(({ name }) => name === "lost update")!);
+orderedSpecs.push(specs.find(({ name }) => name === "write skew")!);
+orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read with locking read")!);
+orderedSpecs.push(specs.find(({ name }) => name === "phantom read with locking read")!);
 
 type Tx = {
   query: string;
@@ -183,8 +216,6 @@ function isLocked(wantEnds: string[]) {
     });
 }
 
-const database = MYSQL;
-
 function App() {
   return (
     <div className="App">
@@ -192,9 +223,10 @@ function App() {
       <table border={1}>
         <thead>
           <tr>
-            <th></th>
-            <th></th>
-            {specs.map((spec) => (
+            <th>DBMS</th>
+            <th>Level</th>
+            <th>Model</th>
+            {orderedSpecs.map((spec) => (
               <th>{spec.name}</th>
             ))}
           </tr>
@@ -202,7 +234,10 @@ function App() {
         <tbody>
           {databases.map((database) =>
             levels.map((level) => {
-              if ([SNAPSHOT, READ_COMMITTED_SNAPSHOT].includes(level) && database !== SQLSERVER) {
+              if (
+                [SNAPSHOT, READ_COMMITTED_SNAPSHOT].includes(level) &&
+                database !== SQLSERVER
+              ) {
                 return null;
               }
 
@@ -210,7 +245,8 @@ function App() {
                 <tr>
                   <td>{database}</td>
                   <td>{level}</td>
-                  {specs.map((spec) => {
+                  <td>{models[database][level]}</td>
+                  {orderedSpecs.map((spec) => {
                     const ok =
                       levelInt[level] >=
                       levelInt[getValue(spec.threshold, database)];
@@ -287,7 +323,13 @@ const Anomaly: React.FC<Spec> = ({
                 <table border={1}>
                   <tbody>
                     {rows.map((steps, i) => (
-                      <Row key={i} level={level} ok={ok} steps={steps} />
+                      <Row
+                        key={i}
+                        database={database}
+                        level={level}
+                        ok={ok}
+                        steps={steps}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -301,6 +343,7 @@ const Anomaly: React.FC<Spec> = ({
 );
 
 const Row: React.FC<{
+  database: Database;
   level: Level;
   ok: boolean;
   steps: (Partial<
@@ -308,7 +351,7 @@ const Row: React.FC<{
       rowspan: number;
     }
   > | null)[];
-}> = ({ level, ok, steps }) => (
+}> = ({ database, level, ok, steps }) => (
   <tr>
     {steps.map((step, j) => {
       if (!step) {
