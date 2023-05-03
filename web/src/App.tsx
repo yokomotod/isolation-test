@@ -4,14 +4,16 @@ import specs from "../../test/specs.json";
 const POSTGRES = "postgres";
 const MYSQL = "mysql";
 const SQLSERVER = "sqlserver";
+const ORACLE = "oracle";
 // const SQLITE = "sqlite";
 const databases = [
   POSTGRES,
   MYSQL,
   SQLSERVER,
+  ORACLE,
   // SQLITE,
 ] as const;
-type Database = typeof POSTGRES | typeof MYSQL | typeof SQLSERVER;
+type Database = typeof POSTGRES | typeof MYSQL | typeof SQLSERVER | typeof ORACLE;
 
 const NO_TRANSACTION = "(NO TRANSACTION)";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
@@ -42,10 +44,42 @@ const levelInt: Record<string, number> = {
   [SERIALIZABLE]: 6,
 };
 
+const dbLevels = {
+	[SQLSERVER]: [
+		NO_TRANSACTION,
+		READ_UNCOMMITTED,
+		READ_COMMITTED,
+		READ_COMMITTED_SNAPSHOT,
+		REPEATABLE_READ,
+		SNAPSHOT,
+		SERIALIZABLE,
+  ],
+	[ORACLE]: [
+		NO_TRANSACTION,
+		READ_COMMITTED,
+		SERIALIZABLE,
+  ],
+	"*": [
+		NO_TRANSACTION,
+		READ_UNCOMMITTED,
+		READ_COMMITTED,
+		REPEATABLE_READ,
+		SERIALIZABLE,
+  ],
+}
+
 const defaultLevel = {
   [POSTGRES]: READ_COMMITTED,
   [MYSQL]: REPEATABLE_READ,
   [SQLSERVER]: READ_COMMITTED,
+  [ORACLE]: READ_COMMITTED,
+}
+
+const dbNames = {
+  [POSTGRES]: "PostgreSQL",
+  [MYSQL]: "MySQL/InnoDB",
+  [SQLSERVER]: "MS SQL Server",
+  [ORACLE]: "Oracle Database",
 }
 
 // TODO: "Read Committed" ほしい
@@ -55,7 +89,7 @@ const models: Record<string, Record<string, string>> = {
     [READ_UNCOMMITTED]: "Monotonic Atomic View",
     [READ_COMMITTED]: "Monotonic Atomic View",
     [REPEATABLE_READ]: "Snapshot Isolation",
-    [SERIALIZABLE]: "Serializable",
+    [SERIALIZABLE]: "Serializable Snapshot Isolation",
   },
   [MYSQL]: {
     [READ_UNCOMMITTED]: "Read Uncommitted",
@@ -70,6 +104,10 @@ const models: Record<string, Record<string, string>> = {
     [REPEATABLE_READ]: "Repeatable Read",
     [SNAPSHOT]: "Snapshot Isolation",
     [SERIALIZABLE]: "Serializable",
+  },
+  [ORACLE]: {
+    [READ_COMMITTED]: "Monotonic Atomic View",
+    [SERIALIZABLE]: "Snapshot Isolation",
   },
 };
 
@@ -254,19 +292,12 @@ function App() {
         </thead>
         <tbody>
           {databases.map((database) =>
-            levels.map((level) => {
-              if (
-                [SNAPSHOT, READ_COMMITTED_SNAPSHOT].includes(level) &&
-                database !== SQLSERVER
-              ) {
-                return null;
-              }
-
+            getValue(dbLevels, database).map((level) => {
               const isDefault = defaultLevel[database] == level;
 
               return (
                 <tr>
-                  <td>{database}</td>
+                  <td>{dbNames[database]}</td>
                   <td>{level}{isDefault && "★"}</td>
                   <td>{models[database][level]}</td>
                   {orderedSpecs.map((spec) => {
@@ -336,7 +367,7 @@ const Anomaly: React.FC<Spec> = ({
     <h2>{name}</h2>
     {levels.map((level) => {
       return (
-        <div key={name}>
+        <div key={`${name}-${level}`}>
           <h3>{level}</h3>
           {databases.map((database) => {
             const ok =
@@ -380,6 +411,7 @@ const Anomaly: React.FC<Spec> = ({
 );
 
 const Row: React.FC<{
+  key: number;
   database: Database;
   level: Level;
   ok: boolean;
@@ -388,8 +420,8 @@ const Row: React.FC<{
       rowspan: number;
     }
   > | null)[];
-}> = ({ database, level, ok, steps }) => (
-  <tr>
+}> = ({ key, database, level, ok, steps }) => (
+  <tr key={key}>
     {steps.map((step, j) => {
       if (!step) {
         return null;

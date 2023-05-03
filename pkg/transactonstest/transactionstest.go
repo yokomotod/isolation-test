@@ -43,7 +43,12 @@ var (
 
 var ab = []string{"a", "b"}
 
-func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]Query, wantStarts, wantEnds []string) {
+type ConnOrTx interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolationLevel sql.IsolationLevel, txs [][]Query, wantStarts, wantEnds []string) {
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev)
 	// logger.Printf("GOMAXPROCS: %d\n", runtime.GOMAXPROCS(0))
@@ -62,7 +67,6 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 		channels[i] = make(chan struct{})
 
 		// logger.Printf("tx%d BeginTx\n", i)
-		// tx, err := db.BeginTx(ctx, nil)
 		conn, err := db.Conn(ctx)
 		if err != nil {
 			panic(err)
@@ -92,7 +96,30 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 				gotStarts = append(gotStarts, fmt.Sprintf("%s:%d", ab[i], j))
 				// start := time.Now()
 				ran = i
-				rows, err := conn.QueryContext(ctx, q.Query)
+				var rows *sql.Rows
+				if strings.Contains(q.Query, "BEGIN") {
+					qs := strings.Split(q.Query, "; ")
+					for _, q := range qs {
+						fmt.Println(q)
+						if strings.HasPrefix(q, "BEGIN") {
+							fmt.Println("db.BeginTx()")
+							conn, err = db.BeginTx(ctx, &sql.TxOptions{Isolation: isolationLevel})
+						} else {
+							_, err = conn.ExecContext(ctx, q)
+						}
+
+						// if i < len(qs)-1 && err != nil {
+						if err != nil {
+							panic(err)
+						}
+					}
+				} else if strings.HasPrefix(q.Query, "SELECT") {
+					rows, err = conn.QueryContext(ctx, q.Query)
+				} else {
+					// go-ora requires to use `Exec`
+					// https://github.com/sijms/go-ora/issues/201
+					_, err = conn.ExecContext(ctx, q.Query)
+				}
 				ch <- struct{}{} // 結果を待つために同期
 				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
 				if err != nil {
@@ -125,13 +152,15 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 					}
 				} else {
 					got := make([]sql.NullInt64, 0)
-					for rows.Next() {
-						var c sql.NullInt64
-						err = rows.Scan(&c)
-						if err != nil {
-							break
+					if rows != nil {
+						for rows.Next() {
+							var c sql.NullInt64
+							err = rows.Scan(&c)
+							if err != nil {
+								break
+							}
+							got = append(got, c)
 						}
-						got = append(got, c)
 					}
 					logger.Printf("(go %d) got   %s<[%d] %+v\n", goID, ab[i], j, got)
 

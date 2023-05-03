@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/microsoft/go-mssqldb"
+	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yokomotod/zakodb/pkg/transactonstest"
@@ -247,6 +248,7 @@ const (
 	MYSQL     = "mysql"
 	POSTGRES  = "postgres"
 	SQLSERVER = "sqlserver"
+	ORACLE    = "oracle"
 	SQLITE    = "sqlite"
 
 	NO_TRANSACTION          = "(NO TRANSACTION)"
@@ -258,7 +260,7 @@ const (
 	SERIALIZABLE            = "SERIALIZABLE"
 )
 
-var databases = []string{MYSQL, POSTGRES, SQLSERVER, SQLITE}
+var databases = []string{MYSQL, POSTGRES, SQLSERVER, ORACLE, SQLITE}
 var dbLevels = map[string][]string{
 	SQLSERVER: {
 		NO_TRANSACTION,
@@ -267,6 +269,11 @@ var dbLevels = map[string][]string{
 		READ_COMMITTED_SNAPSHOT,
 		REPEATABLE_READ,
 		SNAPSHOT,
+		SERIALIZABLE,
+	},
+	ORACLE: {
+		NO_TRANSACTION,
+		READ_COMMITTED,
 		SERIALIZABLE,
 	},
 	"*": {
@@ -295,12 +302,17 @@ func openDB(database string) (*sql.DB, error) {
 		return sql.Open("pgx", "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 	case SQLSERVER:
 		// `CREATE DATABASE test` が必要
-		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test;")
+		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test1;")
 	case SQLSERVER + "_snapshot":
 		// `CREATE DATABASE test2` が必要
 		// `ALTER DATABASE test2 SET ALLOW_SNAPSHOT_ISOLATION ON`
 		// `ALTER DATABASE test2 SET READ_COMMITTED_SNAPSHOT ON``
 		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test2;")
+	case ORACLE:
+		url := go_ora.BuildUrl("127.0.0.1", 1521, "XE", "system", "password", nil) // map[string]string{"DBA PRIVILEGE": "SYSDBA"},
+
+		fmt.Println(url)
+		return sql.Open("oracle", url)
 	case SQLITE:
 		// return sql.Open("sqlite3", "file::memory:?cache=shared&_busy_timeout=5000")
 		// return sql.Open("sqlite3", "file::memory:?cache=shared")
@@ -310,39 +322,71 @@ func openDB(database string) (*sql.DB, error) {
 	}
 }
 
+func getIsolationLevel(database string, level string) sql.IsolationLevel {
+	if level == NO_TRANSACTION {
+		return -1
+	}
+
+	if database == ORACLE {
+		// go-ora only supports default value for isolation
+		// https://github.com/sijms/go-ora/blob/v2.7.2/v2/connection.go#L555
+		return sql.LevelDefault
+	}
+
+	switch level {
+	case READ_UNCOMMITTED:
+		return sql.LevelReadUncommitted
+	case READ_COMMITTED:
+		fallthrough
+	case READ_COMMITTED_SNAPSHOT:
+		return sql.LevelReadCommitted
+	case REPEATABLE_READ:
+		return sql.LevelRepeatableRead
+	case SNAPSHOT:
+		return sql.LevelSnapshot
+	case SERIALIZABLE:
+		return sql.LevelSerializable
+	default:
+		panic(fmt.Errorf("unknown level: %s", level))
+	}
+}
+
 func startTransaction(database string, level string) string {
 	if level == NO_TRANSACTION {
-		return "SELECT 1"
+		return ""
 	}
 
 	switch database {
-	case MYSQL:
-		// SET TRANSACTIONは次のトランザクションの分離レベルを変更
-		// BEGINでは指定できない
-		return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN", level)
-		// BEGINで指定できる
-		// SET TRANSACTIONは現在のトランザクションの分離レベルを変更
-	case POSTGRES:
-		return fmt.Sprintf("BEGIN TRANSACTION ISOLATION LEVEL %s", level)
-	case SQLSERVER:
-		if level == READ_COMMITTED_SNAPSHOT {
-			return "SET TRANSACTION ISOLATION LEVEL READ COMMITTED; BEGIN TRANSACTION"
-		}
-		return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN TRANSACTION", level)
-	case SQLITE:
-		if level == "READ UNCOMMITTED" {
-			return "PRAGMA read_uncommitted = true; BEGIN"
-		}
+	// case MYSQL:
+	// 	// SET TRANSACTIONは次のトランザクションの分離レベルを変更
+	// 	// BEGINでは指定できない
+	// 	return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN", level)
+	// case POSTGRES:
+	// 	// BEGINで指定できる
+	// 	// SET TRANSACTIONは現在のトランザクションの分離レベルを変更
+	// 	return fmt.Sprintf("BEGIN TRANSACTION ISOLATION LEVEL %s", level)
+	// case SQLSERVER:
+	// 	if level == READ_COMMITTED_SNAPSHOT {
+	// 		return "SET TRANSACTION ISOLATION LEVEL READ COMMITTED; BEGIN TRANSACTION"
+	// 	}
+	// 	return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN TRANSACTION", level)
+	case ORACLE:
+		return fmt.Sprintf("BEGIN; SET TRANSACTION ISOLATION LEVEL %s", level)
+	// case SQLITE:
+	// 	if level == "READ UNCOMMITTED" {
+	// 		return "PRAGMA read_uncommitted = true; BEGIN"
+	// 	}
 
-		return "BEGIN"
+	// 	return "BEGIN"
 	default:
-		panic(fmt.Errorf("unknown database: %s", database))
+		// panic(fmt.Errorf("unknown database: %s", database))
+		return "BEGIN"
 	}
 }
 
 func commit(database string, level string) string {
 	if level == NO_TRANSACTION {
-		return "SELECT 1"
+		return ""
 	}
 
 	if database == SQLSERVER {
@@ -354,7 +398,7 @@ func commit(database string, level string) string {
 
 func rollback(database string, level string) string {
 	if level == NO_TRANSACTION {
-		return "SELECT 1"
+		return ""
 	}
 
 	if database == SQLSERVER {
@@ -494,7 +538,9 @@ var specs = []spec{
 				{Query: "ROLLBACK"},
 			},
 		},
-		Threshold:  map[string]string{"*": REPEATABLE_READ},
+		Threshold: map[string]string{
+			"*": REPEATABLE_READ,
+		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
@@ -541,6 +587,7 @@ var specs = []spec{
 		},
 		Skip: map[string]bool{
 			SQLSERVER: true, // doesn't support SELECT ... FOR
+			ORACLE:    true,
 			SQLITE:    true, // doesn't support SELECT ... FOR
 		},
 	},
@@ -601,6 +648,7 @@ var specs = []spec{
 		},
 		Skip: map[string]bool{
 			SQLSERVER: true, // doesn't support SELECT ... FOR
+			ORACLE:    true,
 			SQLITE:    true, // doesn't support SELECT ... FOR
 		},
 	},
@@ -624,8 +672,9 @@ var specs = []spec{
 						POSTGRES + ":" + REPEATABLE_READ:  "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 						POSTGRES + ":" + SERIALIZABLE:     "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 						SQLSERVER + ":" + REPEATABLE_READ: "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
-						SQLSERVER + ":" + SNAPSHOT:        "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
+						SQLSERVER + ":" + SNAPSHOT:        "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
 						SQLSERVER + ":" + SERIALIZABLE:    "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						ORACLE + ":" + SERIALIZABLE:       "ORA-08177: can't serialize access for this transaction\n",
 					},
 					compile: map[string]bool{
 						SQLSERVER + ":" + REPEATABLE_READ: true,
@@ -655,6 +704,7 @@ var specs = []spec{
 			POSTGRES + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
 			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},               // same as SERIALIZABLE
+			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
 			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 		},
 		Skip: map[string]bool{
@@ -711,6 +761,54 @@ var specs = []spec{
 	},
 }
 
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(10*time.Second))
+	defer cancel()
+
+	db, err := sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	// test1
+	_, err = conn.ExecContext(ctx, "DROP DATABASE IF EXISTS test1")
+	if err != nil {
+		panic(err)
+	}
+	_, err = conn.ExecContext(ctx, "CREATE DATABASE test1")
+	if err != nil {
+		panic(err)
+	}
+
+	// test2
+	_, err = conn.ExecContext(ctx, "DROP DATABASE IF EXISTS test2")
+	if err != nil {
+		panic(err)
+	}
+	_, err = conn.ExecContext(ctx, "CREATE DATABASE test2")
+	if err != nil {
+		panic(err)
+	}
+	_, err = conn.ExecContext(ctx, "ALTER DATABASE test2 SET ALLOW_SNAPSHOT_ISOLATION ON")
+	if err != nil {
+		panic(err)
+	}
+	_, err = conn.ExecContext(ctx, "ALTER DATABASE test2 SET READ_COMMITTED_SNAPSHOT ON")
+	if err != nil {
+		panic(err)
+	}
+
+	os.Exit(m.Run())
+}
+
 func Test(t *testing.T) {
 
 	buf, err := json.MarshalIndent(specs, "", "  ")
@@ -760,7 +858,7 @@ func Test(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s/%s/%s", tt.database, tt.level, tt.name), func(t *testing.T) {
 			skip := tt.skip["*"]
-			if v, ok := tt.skip[tt.database+":*"]; ok {
+			if v, ok := tt.skip[tt.database]; ok {
 				skip = v
 			}
 			if v, ok := tt.skip[tt.database+":"+tt.level]; ok {
@@ -779,7 +877,7 @@ func Test(t *testing.T) {
 			defer cancel()
 
 			var db *sql.DB
-			if tt.level == READ_COMMITTED_SNAPSHOT {
+			if tt.level == READ_COMMITTED_SNAPSHOT || tt.level == SNAPSHOT {
 				db, err = openDB(tt.database + "_snapshot")
 
 			} else {
@@ -820,18 +918,26 @@ func Test(t *testing.T) {
 			// 		t.Fatal(err)
 			// 	}
 			// }
-			fmt.Println("DROP TABLE IF EXISTS foo")
-			_, err = conn.ExecContext(ctx, "DROP TABLE IF EXISTS foo")
-			if err != nil {
-				t.Fatal(err)
-			}
+
+			fmt.Println("DROP TABLE foo")
+			_, _ = conn.ExecContext(ctx, "DROP TABLE foo")
+			// ignore drop table error
+			// if err != nil {
+			// 	t.Fatal(err)
+			// }
 			fmt.Println("CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
 			_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
 			if err != nil {
 				t.Fatal(err)
 			}
-			fmt.Println("INSERT INTO foo VALUES (1, 2), (3, 4)")
-			_, err = conn.ExecContext(ctx, "INSERT INTO foo VALUES (1, 2), (3, 4)")
+			fmt.Println("INSERT INTO foo VALUES (1, 2)")
+			_, err = conn.ExecContext(ctx, "INSERT INTO foo VALUES (1, 2)")
+			if err != nil {
+				t.Fatal(err)
+			}
+			// oracle doesn't support `INSERT INTO foo VALUES (1, 2), (3, 4)`
+			fmt.Println("INSERT INTO foo VALUES (3, 4)")
+			_, err = conn.ExecContext(ctx, "INSERT INTO foo VALUES (3, 4)")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -847,14 +953,19 @@ func Test(t *testing.T) {
 				txs[i] = make([]transactonstest.Query, len(tt.txs[i]))
 				for j, q := range queries {
 					query := q.Query
-					if query == "" {
-						query = "SELECT 1"
-					} else if query == "BEGIN" {
+					if query == "BEGIN" {
 						query = startTransaction(tt.database, tt.level)
 					} else if query == "COMMIT" {
 						query = commit(tt.database, tt.level)
 					} else if query == "ROLLBACK" {
 						query = rollback(tt.database, tt.level)
+					}
+
+					if query == "" {
+						query = "SELECT 1"
+						if tt.database == ORACLE {
+							query = "SELECT 1 FROM dual"
+						}
 					}
 
 					want := q.Want
@@ -893,8 +1004,9 @@ func Test(t *testing.T) {
 				wantEnds = v
 			}
 
-			transactonstest.RunTransactionsTest(t, ctx, db, txs, wantStarts, wantEnds)
+			isolationLevel := getIsolationLevel(tt.database, tt.level)
 
+			transactonstest.RunTransactionsTest(t, ctx, db, isolationLevel, txs, wantStarts, wantEnds)
 		})
 	}
 }
