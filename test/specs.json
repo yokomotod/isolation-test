@@ -839,6 +839,8 @@
             "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
             "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "sqlserver:REPEATABLE READ": "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+            "sqlserver:SERIALIZABLE": "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
             "sqlserver:SNAPSHOT": "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement."
           }
         },
@@ -866,7 +868,7 @@
     "threshold": {
       "*": "SERIALIZABLE",
       "postgres": "REPEATABLE READ",
-      "sqlserver": "SNAPSHOT"
+      "sqlserver": "REPEATABLE READ"
     },
     "wantStarts": {
       "*": [
@@ -892,6 +894,16 @@
         "a:4"
       ],
       "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "sqlserver:REPEATABLE READ": [
         "a:0",
         "b:0",
         "a:1",
@@ -965,6 +977,16 @@
         "a:2",
         "a:3",
         "b:2",
+        "a:4"
+      ],
+      "sqlserver:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "a:3",
         "a:4"
       ],
       "sqlserver:SNAPSHOT": [
@@ -1055,7 +1077,9 @@
           "wantOk": null,
           "wantNg": null,
           "wantErr": {
-            "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction"
+            "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+            "sqlserver:REPEATABLE READ": "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+            "sqlserver:SERIALIZABLE": "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\."
           }
         },
         {
@@ -1106,6 +1130,26 @@
         "b:2",
         "a:3",
         "a:4"
+      ],
+      "sqlserver:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "sqlserver:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
       ]
     },
     "wantEnds": {
@@ -1128,6 +1172,26 @@
         "b:1",
         "b:2",
         "a:2",
+        "a:3",
+        "a:4"
+      ],
+      "sqlserver:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "sqlserver:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
         "a:3",
         "a:4"
       ]

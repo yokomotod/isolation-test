@@ -403,6 +403,7 @@ type query struct {
 	WantOK  []sql.NullInt64   `json:"wantOk"`
 	WantNG  []sql.NullInt64   `json:"wantNg"`
 	WantErr map[string]string `json:"wantErr"`
+	compile map[string]bool
 }
 
 type spec struct {
@@ -608,41 +609,48 @@ var specs = []spec{
 			{
 				{Query: "BEGIN"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 200 WHERE id = 1", WantErr: map[string]string{
-					MYSQL + ":" + SERIALIZABLE:       "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
-					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
-				}},
+				{Query: "UPDATE foo SET value = 200 WHERE id = 1",
+					WantErr: map[string]string{
+						MYSQL + ":" + SERIALIZABLE:        "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+						POSTGRES + ":" + REPEATABLE_READ:  "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+						POSTGRES + ":" + SERIALIZABLE:     "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+						SQLSERVER + ":" + REPEATABLE_READ: "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						SQLSERVER + ":" + SNAPSHOT:        "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
+						SQLSERVER + ":" + SERIALIZABLE:    "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+					},
+					compile: map[string]bool{
+						SQLSERVER + ":" + REPEATABLE_READ: true,
+						SQLSERVER + ":" + SERIALIZABLE:    true,
+					},
+				},
 				{Query: "COMMIT"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
 			},
 		},
 		Threshold: map[string]string{
-			// SQLSERVER: READ_UNCOMMITTED,
 			POSTGRES:  REPEATABLE_READ,
-			SQLSERVER: SNAPSHOT,
+			SQLSERVER: REPEATABLE_READ,
 			"*":       SERIALIZABLE,
 		},
 		WantStarts: map[string][]string{
-			SERIALIZABLE:                     genSeq(5, 3),
-			POSTGRES + ":" + REPEATABLE_READ: genSeq(5, 3),
-			SQLSERVER + ":" + SNAPSHOT:       genSeq(5, 3),
-			"*":                              genSeq(5, 5),
+			SERIALIZABLE:                      genSeq(5, 3),
+			POSTGRES + ":" + REPEATABLE_READ:  genSeq(5, 3),
+			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
+			SQLSERVER + ":" + SNAPSHOT:        genSeq(5, 3),
+			"*":                               genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
-			NO_TRANSACTION:                   genSeq(5, 5),
-			SERIALIZABLE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
-			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
-			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
-			SQLSERVER + ":" + SNAPSHOT:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
-			"*":                              {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
+			NO_TRANSACTION:                    genSeq(5, 5),
+			SERIALIZABLE:                      {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
+			POSTGRES + ":" + REPEATABLE_READ:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
+			POSTGRES + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
+			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},               // same as SERIALIZABLE
+			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 		},
 		skip: func(d string, l string) bool {
 			// "database is locked" won't finish transaction ?
-			return d == SQLITE && l == SERIALIZABLE ||
-				// dead lock
-				d == SQLSERVER && (l == REPEATABLE_READ || l == SERIALIZABLE)
+			return d == SQLITE && l == SERIALIZABLE
 		},
 	},
 
@@ -660,9 +668,16 @@ var specs = []spec{
 				{Query: "BEGIN"},
 				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // get Y
 				// update X to Y*10
-				{Query: "UPDATE foo SET value = 40 WHERE id = 1", WantErr: map[string]string{
-					MYSQL + ":" + SERIALIZABLE: "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
-				}},
+				{Query: "UPDATE foo SET value = 40 WHERE id = 1",
+					WantErr: map[string]string{
+						MYSQL + ":" + SERIALIZABLE:        "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+						SQLSERVER + ":" + REPEATABLE_READ: "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						SQLSERVER + ":" + SERIALIZABLE:    "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+					},
+					compile: map[string]bool{
+						SQLSERVER + ":" + REPEATABLE_READ: true,
+						SQLSERVER + ":" + SERIALIZABLE:    true,
+					}},
 				{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInts(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
 				{Query: "COMMIT", WantErr: map[string]string{
 					POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
@@ -671,18 +686,20 @@ var specs = []spec{
 		},
 		Threshold: map[string]string{"*": SERIALIZABLE},
 		WantStarts: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE: genSeq(5, 3),
-			"*":                        genSeq(5, 5),
+			MYSQL + ":" + SERIALIZABLE:        genSeq(5, 3),
+			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
+			SQLSERVER + ":" + SERIALIZABLE:    genSeq(5, 3),
+			"*":                               genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
-			"*":                        genSeq(5, 5),
+			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
+			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
+			"*":                               genSeq(5, 5),
 		},
 		skip: func(d string, l string) bool {
 			// "database is locked" won't finish transaction ?
-			return d == SQLITE && l == SERIALIZABLE ||
-				// dead lock
-				d == SQLSERVER && (l == REPEATABLE_READ || l == SERIALIZABLE)
+			return d == SQLITE && l == SERIALIZABLE
 		},
 	},
 }
@@ -748,7 +765,7 @@ func Test(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Second))
+			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(10*time.Second))
 			defer cancel()
 
 			var db *sql.DB
@@ -843,6 +860,7 @@ func Test(t *testing.T) {
 						Query:   query,
 						Want:    want,
 						WantErr: q.WantErr[tt.database+":"+tt.level],
+						Compile: q.compile[tt.database+":"+tt.level],
 					}
 				}
 			}

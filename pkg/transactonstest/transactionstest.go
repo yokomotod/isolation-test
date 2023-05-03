@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ type Query struct {
 	Query   string
 	Want    []sql.NullInt64
 	WantErr string
+	Compile bool
 }
 
 func getGoID() int {
@@ -95,7 +97,15 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, txs [][]
 				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
 				if err != nil {
 					if q.WantErr != "" {
-						if err.Error() == q.WantErr {
+						matched := err.Error() == q.WantErr
+						if q.Compile {
+							var e error
+							matched, e = regexp.MatchString("^"+q.WantErr+"$", err.Error())
+							if e != nil {
+								panic(e)
+							}
+						}
+						if matched {
 							// ok, but break
 							logger.Printf("(go %d) err   %s<[%d] %s\n", goID, ab[i], j, err)
 						} else {
