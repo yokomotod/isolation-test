@@ -67,6 +67,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 		channels[i] = make(chan struct{})
 
 		// logger.Printf("tx%d BeginTx\n", i)
+		var conn ConnOrTx
 		conn, err := db.Conn(ctx)
 		if err != nil {
 			panic(err)
@@ -138,7 +139,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 						} else {
 							fmt.Println("error mismatch")
 							fmt.Println(q.WantErr)
-							fmt.Println(err)
+							fmt.Printf("%#v\n", err.Error())
 							panic(err)
 						}
 					} else if err == sql.ErrNoRows && q.Want == nil {

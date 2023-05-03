@@ -5,15 +5,17 @@ const POSTGRES = "postgres";
 const MYSQL = "mysql";
 const SQLSERVER = "sqlserver";
 const ORACLE = "oracle";
+const DB2 = "db2"
 // const SQLITE = "sqlite";
 const databases = [
   POSTGRES,
   MYSQL,
   SQLSERVER,
   ORACLE,
+  DB2,
   // SQLITE,
 ] as const;
-type Database = typeof POSTGRES | typeof MYSQL | typeof SQLSERVER | typeof ORACLE;
+type Database = typeof POSTGRES | typeof MYSQL | typeof SQLSERVER | typeof ORACLE | typeof DB2;
 
 const NO_TRANSACTION = "(NO TRANSACTION)";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
@@ -73,6 +75,7 @@ const defaultLevel = {
   [MYSQL]: REPEATABLE_READ,
   [SQLSERVER]: READ_COMMITTED,
   [ORACLE]: READ_COMMITTED,
+  [DB2]: READ_COMMITTED,
 }
 
 const dbNames = {
@@ -80,6 +83,7 @@ const dbNames = {
   [MYSQL]: "MySQL/InnoDB",
   [SQLSERVER]: "MS SQL Server",
   [ORACLE]: "Oracle Database",
+  [DB2]: "IBM Db2",
 }
 
 // TODO: "Read Committed" ほしい
@@ -108,6 +112,12 @@ const models: Record<string, Record<string, string>> = {
   [ORACLE]: {
     [READ_COMMITTED]: "Monotonic Atomic View",
     [SERIALIZABLE]: "Snapshot Isolation",
+  },
+  [DB2]: {
+    [READ_UNCOMMITTED]: "Read Uncommitted",
+    [READ_COMMITTED]: "Monotonic Atomic View",
+    [REPEATABLE_READ]: "Monotonic Atomic View",
+    [SERIALIZABLE]: "Serializable",
   },
 };
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/docker/go-connections/nat"
 	"github.com/go-sql-driver/mysql"
+	_ "github.com/ibmdb/go_ibm_db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
@@ -249,6 +250,7 @@ const (
 	POSTGRES  = "postgres"
 	SQLSERVER = "sqlserver"
 	ORACLE    = "oracle"
+	DB2       = "db2"
 	SQLITE    = "sqlite"
 
 	NO_TRANSACTION          = "(NO TRANSACTION)"
@@ -260,7 +262,7 @@ const (
 	SERIALIZABLE            = "SERIALIZABLE"
 )
 
-var databases = []string{MYSQL, POSTGRES, SQLSERVER, ORACLE, SQLITE}
+var databases = []string{MYSQL, POSTGRES, SQLSERVER, ORACLE, DB2, SQLITE}
 var dbLevels = map[string][]string{
 	SQLSERVER: {
 		NO_TRANSACTION,
@@ -311,8 +313,9 @@ func openDB(database string) (*sql.DB, error) {
 	case ORACLE:
 		url := go_ora.BuildUrl("127.0.0.1", 1521, "XE", "system", "password", nil) // map[string]string{"DBA PRIVILEGE": "SYSDBA"},
 
-		fmt.Println(url)
 		return sql.Open("oracle", url)
+	case DB2:
+		return sql.Open("go_ibm_db", "HOSTNAME=127.0.0.1;DATABASE=testdb;PORT=50000;UID=db2inst1;PWD=password")
 	case SQLITE:
 		// return sql.Open("sqlite3", "file::memory:?cache=shared&_busy_timeout=5000")
 		// return sql.Open("sqlite3", "file::memory:?cache=shared")
@@ -330,6 +333,10 @@ func getIsolationLevel(database string, level string) sql.IsolationLevel {
 	if database == ORACLE {
 		// go-ora only supports default value for isolation
 		// https://github.com/sijms/go-ora/blob/v2.7.2/v2/connection.go#L555
+		return sql.LevelDefault
+	}
+	if database == DB2 {
+		// go_ibm_db driver does not support non-default isolation level
 		return sql.LevelDefault
 	}
 
@@ -372,6 +379,8 @@ func startTransaction(database string, level string) string {
 	// 	return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN TRANSACTION", level)
 	case ORACLE:
 		return fmt.Sprintf("BEGIN; SET TRANSACTION ISOLATION LEVEL %s", level)
+	case DB2:
+		return fmt.Sprintf("BEGIN; SET CURRENT ISOLATION TO %s", level)
 	// case SQLITE:
 	// 	if level == "READ UNCOMMITTED" {
 	// 		return "PRAGMA read_uncommitted = true; BEGIN"
@@ -513,6 +522,8 @@ var specs = []spec{
 			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			"*":                               genSeq(3, 3),
 		},
 	},
@@ -546,6 +557,8 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLITE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			"*":                               genSeq(3, 4),
 		},
@@ -588,6 +601,7 @@ var specs = []spec{
 		Skip: map[string]bool{
 			SQLSERVER: true, // doesn't support SELECT ... FOR
 			ORACLE:    true,
+			DB2:       true,
 			SQLITE:    true, // doesn't support SELECT ... FOR
 		},
 	},
@@ -616,6 +630,8 @@ var specs = []spec{
 		WantEnds: map[string][]string{
 			MYSQL + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			SQLSERVER + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			DB2 + ":" + REPEATABLE_READ:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			DB2 + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			SQLITE + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			"*":                            genSeq(3, 4),
 		},
@@ -649,6 +665,7 @@ var specs = []spec{
 		Skip: map[string]bool{
 			SQLSERVER: true, // doesn't support SELECT ... FOR
 			ORACLE:    true,
+			DB2:       true,
 			SQLITE:    true, // doesn't support SELECT ... FOR
 		},
 	},
@@ -659,7 +676,10 @@ var specs = []spec{
 			{
 				{Query: "BEGIN"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1", WantErr: map[string]string{
+					DB2 + ":" + REPEATABLE_READ: "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+					DB2 + ":" + SERIALIZABLE:    "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+				}},
 				{Query: "COMMIT"},
 				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(20), WantNG: newNullInts(200)},
 			},
@@ -688,6 +708,7 @@ var specs = []spec{
 		Threshold: map[string]string{
 			POSTGRES:  REPEATABLE_READ,
 			SQLSERVER: REPEATABLE_READ,
+			DB2:       REPEATABLE_READ,
 			"*":       SERIALIZABLE,
 		},
 		WantStarts: map[string][]string{
@@ -695,16 +716,20 @@ var specs = []spec{
 			POSTGRES + ":" + REPEATABLE_READ:  genSeq(5, 3),
 			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
 			SQLSERVER + ":" + SNAPSHOT:        genSeq(5, 3),
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			"*":                               genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
 			NO_TRANSACTION:                    genSeq(5, 5),
 			SERIALIZABLE:                      {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
 			POSTGRES + ":" + REPEATABLE_READ:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
-			POSTGRES + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
-			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
-			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},               // same as SERIALIZABLE
-			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},               // same as POSTGRES:REPEATABLE_READ
+			POSTGRES + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // same as SERIALIZABLE
+			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
 			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 		},
 		Skip: map[string]bool{
@@ -717,8 +742,13 @@ var specs = []spec{
 		Txs: [][]query{
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},  // get X
-				{Query: "UPDATE foo SET value = 20 WHERE id = 3"},                    // update Y to X*10
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)}, // get X
+				{Query: "UPDATE foo SET value = 20 WHERE id = 3", // update Y to X*10
+					WantErr: map[string]string{
+						DB2 + ":" + REPEATABLE_READ: "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + SERIALIZABLE:    "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+					},
+				},
 				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(20)}, // got X*10
 				{Query: "COMMIT"},
 			},
@@ -736,6 +766,8 @@ var specs = []spec{
 						SQLSERVER + ":" + REPEATABLE_READ: true,
 						SQLSERVER + ":" + SERIALIZABLE:    true,
 					}},
+				// TODO:`Want:`を定義
+				// Oracle SerializableがOK判定になってる
 				{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInts(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
 				{Query: "COMMIT", WantErr: map[string]string{
 					POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
@@ -747,12 +779,16 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE:        genSeq(5, 3),
 			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
 			SQLSERVER + ":" + SERIALIZABLE:    genSeq(5, 3),
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			"*":                               genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			"*":                               genSeq(5, 5),
 		},
 		Skip: map[string]bool{
@@ -763,7 +799,7 @@ var specs = []spec{
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(10*time.Second))
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(15*time.Second))
 	defer cancel()
 
 	db, err := sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd")
@@ -925,8 +961,8 @@ func Test(t *testing.T) {
 			// if err != nil {
 			// 	t.Fatal(err)
 			// }
-			fmt.Println("CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
-			_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT PRIMARY KEY, value INT)")
+			fmt.Println("CREATE TABLE foo (id INT NOT NULL PRIMARY KEY, value INT)")
+			_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT NOT NULL PRIMARY KEY, value INT)")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -965,6 +1001,8 @@ func Test(t *testing.T) {
 						query = "SELECT 1"
 						if tt.database == ORACLE {
 							query = "SELECT 1 FROM dual"
+						} else if tt.database == DB2 {
+							query = "SELECT 1 FROM SYSIBM.DUAL"
 						}
 					}
 

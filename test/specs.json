@@ -202,6 +202,22 @@
         "a:2",
         "b:2"
       ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "b:1",
+        "b:2"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "b:1",
+        "b:2"
+      ],
       "mysql:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -332,6 +348,24 @@
         "a:2",
         "b:2",
         "b:3"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
       ],
       "mysql:SERIALIZABLE": [
         "a:0",
@@ -515,6 +549,7 @@
       ]
     },
     "skip": {
+      "db2": true,
       "oracle": true,
       "sqlite": true,
       "sqlserver": true
@@ -621,6 +656,24 @@
         "a:2",
         "b:2",
         "b:3"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
       ],
       "mysql:SERIALIZABLE": [
         "a:0",
@@ -764,6 +817,7 @@
       ]
     },
     "skip": {
+      "db2": true,
       "oracle": true,
       "sqlite": true,
       "sqlserver": true
@@ -797,7 +851,10 @@
           "want": null,
           "wantOk": null,
           "wantNg": null,
-          "wantErr": null
+          "wantErr": {
+            "db2:REPEATABLE READ": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+            "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n"
+          }
         },
         {
           "query": "COMMIT",
@@ -882,6 +939,7 @@
     ],
     "threshold": {
       "*": "SERIALIZABLE",
+      "db2": "REPEATABLE READ",
       "postgres": "REPEATABLE READ",
       "sqlserver": "REPEATABLE READ"
     },
@@ -907,6 +965,26 @@
         "b:2",
         "a:3",
         "a:4"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
       ],
       "postgres:REPEATABLE READ": [
         "a:0",
@@ -973,6 +1051,26 @@
         "a:2",
         "a:3",
         "a:4"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "b:3",
+        "b:4"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "b:3",
+        "b:4"
       ],
       "oracle:SERIALIZABLE": [
         "a:0",
@@ -1057,7 +1155,10 @@
           "want": null,
           "wantOk": null,
           "wantNg": null,
-          "wantErr": null
+          "wantErr": {
+            "db2:REPEATABLE READ": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+            "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n"
+          }
         },
         {
           "query": "SELECT value FROM foo WHERE id = 3",
@@ -1149,6 +1250,26 @@
         "a:4",
         "b:4"
       ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
       "mysql:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -1191,6 +1312,26 @@
         "a:3",
         "b:3",
         "a:4",
+        "b:4"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
         "b:4"
       ],
       "mysql:SERIALIZABLE": [
