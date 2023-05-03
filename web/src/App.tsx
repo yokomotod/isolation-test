@@ -42,6 +42,8 @@ const levelInt: Record<string, number> = {
   [SERIALIZABLE]: 6,
 };
 
+// TODO: "Read Committed" ほしい
+// TODO: "Cursor Stability" ほしい
 const models: Record<string, Record<string, string>> = {
   [POSTGRES]: {
     [READ_UNCOMMITTED]: "Monotonic Atomic View",
