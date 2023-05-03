@@ -74,8 +74,12 @@ orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "phantom read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "lost update")!);
 orderedSpecs.push(specs.find(({ name }) => name === "write skew")!);
-orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read with locking read")!);
-orderedSpecs.push(specs.find(({ name }) => name === "phantom read with locking read")!);
+orderedSpecs.push(
+  specs.find(({ name }) => name === "fuzzy read with locking read")!
+);
+orderedSpecs.push(
+  specs.find(({ name }) => name === "phantom read with locking read")!
+);
 
 type Tx = {
   query: string;
@@ -90,6 +94,7 @@ type Spec = {
   threshold: Record<string, string | undefined> & { "*": string };
   wantStarts: Record<string, string[] | undefined> & { "*": string[] };
   wantEnds: Record<string, string[] | undefined> & { "*": string[] };
+  skip: Record<string, boolean | undefined> | null;
 };
 
 function convertTxs(
@@ -182,12 +187,20 @@ function convertTxs(
   return rows;
 }
 
+function findValue<T>(
+  map: Record<string, T | undefined>,
+  k1: string,
+  k2?: string
+): T | undefined {
+  return map[`${k1}:${k2}`] || map[k1] || (k2 && map[k2]) || undefined;
+}
+
 function getValue<T>(
   map: Record<string, T | undefined> & { "*": T },
   k1: string,
   k2?: string
 ): T {
-  return map[`${k1}:${k2}`] || map[k1] || (k2 && map[k2]) || map["*"];
+  return findValue(map, k1, k2) || map["*"];
 }
 
 function isLocked(wantEnds: string[]) {
@@ -249,6 +262,8 @@ function App() {
                   <td>{level}</td>
                   <td>{models[database][level]}</td>
                   {orderedSpecs.map((spec) => {
+                    const skip =
+                      !!spec.skip && findValue(spec.skip, database, level);
                     const ok =
                       levelInt[level] >=
                       levelInt[getValue(spec.threshold, database)];
@@ -264,7 +279,9 @@ function App() {
                     return (
                       <td
                         style={{
-                          backgroundColor: ok
+                          backgroundColor: skip
+                            ? "lightgray"
+                            : ok
                             ? err
                               ? "yellow"
                               : locked
@@ -273,9 +290,19 @@ function App() {
                             : "red",
                         }}
                       >
-                        <a href={`#${spec.name}-${database}-${level}`}>
-                          {ok ? (err ? "ERROR" : locked ? "LOCK" : "OK") : "NG"}
-                        </a>
+                        {skip ? (
+                          "N/A"
+                        ) : (
+                          <a href={`#${spec.name}-${database}-${level}`}>
+                            {ok
+                              ? err
+                                ? "ERROR"
+                                : locked
+                                ? "LOCK"
+                                : "OK"
+                              : "NG"}
+                          </a>
+                        )}
                       </td>
                     );
                   })}

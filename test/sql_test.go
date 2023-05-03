@@ -412,7 +412,7 @@ type spec struct {
 	Threshold  map[string]string   `json:"threshold"`
 	WantStarts map[string][]string `json:"wantStarts"`
 	WantEnds   map[string][]string `json:"wantEnds"`
-	skip       func(database string, level string) bool
+	Skip       map[string]bool     `json:"skip"`
 }
 
 var specs = []spec{
@@ -539,7 +539,10 @@ var specs = []spec{
 			POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3),                                      // 2nd SELECT crashes
 			"*":                              genSeq(3, 4),
 		},
-		skip: func(d string, l string) bool { return d == SQLITE || d == SQLSERVER }, // sqlite doesn't support SELECT ... FOR
+		Skip: map[string]bool{
+			SQLSERVER: true, // doesn't support SELECT ... FOR
+			SQLITE:    true, // doesn't support SELECT ... FOR
+		},
 	},
 
 	{
@@ -596,7 +599,10 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
 			"*":                        genSeq(3, 4),
 		},
-		skip: func(d string, l string) bool { return d == SQLITE || d == SQLSERVER }, // sqlite doesn't support SELECT ... FOR
+		Skip: map[string]bool{
+			SQLSERVER: true, // doesn't support SELECT ... FOR
+			SQLITE:    true, // doesn't support SELECT ... FOR
+		},
 	},
 
 	{
@@ -651,9 +657,8 @@ var specs = []spec{
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},               // same as SERIALIZABLE
 			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 		},
-		skip: func(d string, l string) bool {
-			// "database is locked" won't finish transaction ?
-			return d == SQLITE && l == SERIALIZABLE
+		Skip: map[string]bool{
+			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
 		},
 	},
 
@@ -700,9 +705,8 @@ var specs = []spec{
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
 			"*":                               genSeq(5, 5),
 		},
-		skip: func(d string, l string) bool {
-			// "database is locked" won't finish transaction ?
-			return d == SQLITE && l == SERIALIZABLE
+		Skip: map[string]bool{
+			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
 		},
 	},
 }
@@ -726,7 +730,7 @@ func Test(t *testing.T) {
 		threshold  map[string]string
 		wantStarts map[string][]string
 		wantEnds   map[string][]string
-		skip       bool
+		skip       map[string]bool
 	}
 
 	tests := make([]test, 0)
@@ -739,11 +743,6 @@ func Test(t *testing.T) {
 
 		for _, level := range levels {
 			for _, spec := range specs {
-				skip := false
-				if spec.skip != nil {
-					skip = spec.skip(database, level)
-				}
-
 				tests = append(tests, test{
 					database:   database,
 					level:      level,
@@ -752,7 +751,7 @@ func Test(t *testing.T) {
 					threshold:  spec.Threshold,
 					wantStarts: spec.WantStarts,
 					wantEnds:   spec.WantEnds,
-					skip:       skip,
+					skip:       spec.Skip,
 				})
 			}
 		}
@@ -760,7 +759,15 @@ func Test(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s/%s/%s", tt.database, tt.level, tt.name), func(t *testing.T) {
-			if tt.skip {
+			skip := tt.skip["*"]
+			if v, ok := tt.skip[tt.database+":*"]; ok {
+				skip = v
+			}
+			if v, ok := tt.skip[tt.database+":"+tt.level]; ok {
+				skip = v
+			}
+
+			if skip {
 				t.SkipNow()
 			}
 			if tt.database == SQLITE && (tt.level != NO_TRANSACTION && tt.level != SERIALIZABLE) {
