@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -759,6 +760,55 @@ var specs = []spec{
 			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
 		},
 	},
+	{
+		Name: "lost update with locking read",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(2)},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+				{Query: "COMMIT"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(20), WantErr: map[string]string{
+					// NOTE: 違反してないような気がするんだけど
+					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
+				}},
+				{}, // SQLSERVERでUPDATEが先行してしまうので
+				{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
+				{Query: "COMMIT"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
+			},
+		},
+		Threshold: map[string]string{
+			"*": READ_UNCOMMITTED, // always OK
+		},
+		WantStarts: map[string][]string{
+			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},
+			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                             // same as POSTGRES:REPEATABLE_READ
+			ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                             // same as POSTGRES:REPEATABLE_READ
+			"*":                              {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4", "b:5"}, // T2 SELECT is locked
+		},
+		WantEnds: map[string][]string{
+			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"},
+			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+			ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+			"*":                              {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4", "b:2", "b:3", "b:4", "b:5"},
+		},
+		Skip: map[string]bool{
+			POSTGRES + ":" + NO_TRANSACTION:  true,
+			MYSQL + ":" + NO_TRANSACTION:     true,
+			SQLSERVER + ":" + NO_TRANSACTION: true,
+			SQLSERVER + ":" + SNAPSHOT:       true, // FIXME: mssql: The COMMIT TRANSACTION request has no corresponding BEGIN TRANSACTION.
+			ORACLE + ":" + NO_TRANSACTION:    true,
+			DB2:                              true,
+			SQLITE:                           true, // doesn't support SELECT ... FOR
+		},
+	},
 
 	{
 		Name: "write skew",
@@ -1047,6 +1097,11 @@ func Test(t *testing.T) {
 						}
 					}
 
+					if tt.database == SQLSERVER && strings.Contains(query, " FOR UPDATE") {
+						query = strings.ReplaceAll(query, " FOR UPDATE", "")
+						query = strings.ReplaceAll(query, " FROM foo", " FROM foo WITH(ROWLOCK, UPDLOCK)")
+
+					}
 					want := q.Want
 					if want == nil {
 						if ok {

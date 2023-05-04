@@ -1178,6 +1178,213 @@
     }
   },
   {
+    "name": "lost update with locking read",
+    "txs": [
+      [
+        {
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1 FOR UPDATE",
+          "want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        }
+      ],
+      [
+        {
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1 FOR UPDATE",
+          "want": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": {
+            "oracle:SERIALIZABLE": "ORA-08177: can't serialize access for this transaction\n",
+            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
+          }
+        },
+        {
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "UPDATE foo SET value = 200 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
+            {
+              "Int64": 200,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        }
+      ]
+    ],
+    "threshold": {
+      "*": "READ UNCOMMITTED"
+    },
+    "additional_ok": null,
+    "wantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "a:4",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "oracle:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "a:4"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "a:4"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "a:4"
+      ]
+    },
+    "wantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "a:4",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "oracle:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "a:4"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "a:4"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "a:4"
+      ]
+    },
+    "skip": {
+      "db2": true,
+      "mysql:NO TRANSACTION": true,
+      "oracle:NO TRANSACTION": true,
+      "postgres:NO TRANSACTION": true,
+      "sqlite": true,
+      "sqlserver:NO TRANSACTION": true,
+      "sqlserver:SNAPSHOT": true
+    }
+  },
+  {
     "name": "write skew",
     "txs": [
       [

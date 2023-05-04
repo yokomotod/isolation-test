@@ -160,6 +160,9 @@ orderedSpecs.push(
 orderedSpecs.push(
   specs.find(({ name }) => name === "phantom read with locking read")!
 );
+orderedSpecs.push(
+  specs.find(({ name }) => name === "lost update with locking read")!
+);
 
 type Tx = {
   query: string;
