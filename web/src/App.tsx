@@ -59,7 +59,7 @@ const levelInt: Record<string, number> = {
 const dbLevels = {
   [POSTGRES]: {
     [NO_TRANSACTION]: "no transaction",
-    [READ_UNCOMMITTED]: `${READ_UNCOMMITTED}/(${READ_COMMITTED} alias)`,
+    [READ_UNCOMMITTED]: [READ_UNCOMMITTED, <br />, `(${READ_COMMITTED} alias)`],
     [READ_COMMITTED]: READ_COMMITTED,
     [REPEATABLE_READ]: REPEATABLE_READ,
     [SERIALIZABLE]: SERIALIZABLE,
@@ -80,10 +80,22 @@ const dbLevels = {
   },
   [DB2]: {
     [NO_TRANSACTION]: "no transaction",
-    [READ_UNCOMMITTED]: `UR(Uncommitted read)/${READ_UNCOMMITTED}/DIRTY READ`,
-    [READ_COMMITTED]: `CS/CURSOR STABILITY/${READ_COMMITTED}`,
+    [READ_UNCOMMITTED]: [
+      "UR(Uncommitted read)",
+      <br />,
+      READ_UNCOMMITTED,
+      <br />,
+      "DIRTY READ",
+    ],
+    [READ_COMMITTED]: [
+      "CS",
+      <br />,
+      "CURSOR STABILITY",
+      <br />,
+      READ_COMMITTED,
+    ],
     [READ_STABILITY]: `RS(Read stability)`,
-    [REPEATABLE_READ]: `RR/${REPEATABLE_READ}`,
+    [REPEATABLE_READ]: ["RR", <br />, REPEATABLE_READ],
     [SERIALIZABLE]: `${SERIALIZABLE}/(RR alias)`,
   },
   "*": {
@@ -113,37 +125,47 @@ const dbNames: Record<string, string> = {
 
 // TODO: "Read Committed" ほしい
 // TODO: "Cursor Stability" ほしい
-const models: Record<string, Record<string, string>> = {
+const models: Record<string, Record<string, React.ReactNode>> = {
   [POSTGRES]: {
-    [READ_UNCOMMITTED]: "Monotonic Atomic View",
-    [READ_COMMITTED]: "Monotonic Atomic View",
-    [REPEATABLE_READ]: "Snapshot Isolation",
-    [SERIALIZABLE]: "Serializable Snapshot Isolation",
+    [READ_UNCOMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+    [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+    [REPEATABLE_READ]: ["Snapshot Isolation"],
+    [SERIALIZABLE]: ["Serializable Snapshot Isolation"],
   },
   [MYSQL]: {
-    [READ_UNCOMMITTED]: "Read Uncommitted",
-    [READ_COMMITTED]: "Monotonic Atomic View",
-    [REPEATABLE_READ]: "Monotonic Atomic View",
-    [SERIALIZABLE]: "Serializable",
+    [READ_UNCOMMITTED]: ["Read Uncommitted"],
+    [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+    [REPEATABLE_READ]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+    [SERIALIZABLE]: ["Serializable"],
   },
   [SQLSERVER]: {
-    [READ_UNCOMMITTED]: "Read Uncommitted",
-    [READ_COMMITTED]: "Monotonic Atomic View",
-    [READ_COMMITTED_SNAPSHOT]: "Monotonic Atomic View",
-    [REPEATABLE_READ]: "Repeatable Read",
-    [SNAPSHOT]: "Snapshot Isolation",
-    [SERIALIZABLE]: "Serializable",
+    [READ_UNCOMMITTED]: ["Read Uncommitted"],
+    [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+    [READ_COMMITTED_SNAPSHOT]: [
+      "Monotonic Atomic View?",
+      <br />,
+      "Monotonic View?",
+    ],
+    [REPEATABLE_READ]: ["Repeatable Read"],
+    [SNAPSHOT]: ["Snapshot Isolation"],
+    [SERIALIZABLE]: ["Serializable"],
   },
   [ORACLE]: {
-    [READ_COMMITTED]: "Monotonic Atomic View",
-    [SERIALIZABLE]: "Snapshot Isolation",
+    [READ_COMMITTED]: [
+      "Monotonic Atomic View?",
+      <br />,
+      "Monotonic View?",
+      <br />,
+      "Monotonic Snapshot Reads?",
+    ],
+    [SERIALIZABLE]: ["Snapshot Isolation"],
   },
   [DB2]: {
-    [READ_UNCOMMITTED]: "?",
-    [READ_COMMITTED]: "?",
-    [READ_STABILITY]: "?",
-    [REPEATABLE_READ]: "?",
-    [SERIALIZABLE]: "?",
+    [READ_UNCOMMITTED]: ["Read Uncommitted?"],
+    [READ_COMMITTED]: ["Read Committed?", <br />, "Cursor Stability?"],
+    [READ_STABILITY]: ["Repeatable Read?"],
+    [REPEATABLE_READ]: ["Serializable?"],
+    [SERIALIZABLE]: ["Serializable?"],
   },
 };
 
@@ -389,13 +411,7 @@ function App() {
                     </td>
                     <td>{dbNames[database]}</td>
                     <td>
-                      {levelName
-                        .split("/")
-                        .reduce<React.ReactNode[]>(
-                          (acc, x) =>
-                            acc.length > 0 ? [...acc, <br />, x] : [x],
-                          []
-                        )}
+                      {levelName}
                       {isDefault && "★"}
                     </td>
                     <td>{models[database][level]}</td>
