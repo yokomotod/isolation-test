@@ -70,15 +70,6 @@
       "*": "READ UNCOMMITTED"
     },
     "wantStarts": {
-      "(NO TRANSACTION)": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3"
-      ],
       "*": [
         "a:0",
         "b:0",
@@ -87,18 +78,18 @@
         "a:2",
         "a:3",
         "b:2"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3"
       ]
     },
     "wantEnds": {
-      "(NO TRANSACTION)": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3"
-      ],
       "*": [
         "a:0",
         "b:0",
@@ -107,6 +98,15 @@
         "a:3",
         "b:1",
         "b:2"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3"
       ]
     },
     "skip": null
@@ -186,14 +186,6 @@
       ]
     },
     "wantEnds": {
-      "(NO TRANSACTION)": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2"
-      ],
       "*": [
         "a:0",
         "b:0",
@@ -202,7 +194,23 @@
         "a:2",
         "b:2"
       ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2"
+      ],
       "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "b:1",
+        "b:2"
+      ],
+      "db2:RS": [
         "a:0",
         "b:0",
         "a:1",
@@ -326,7 +334,8 @@
       ]
     ],
     "threshold": {
-      "*": "REPEATABLE READ"
+      "*": "REPEATABLE READ",
+      "db2": "RS"
     },
     "wantStarts": {
       "*": [
@@ -350,6 +359,15 @@
         "b:3"
       ],
       "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "db2:RS": [
         "a:0",
         "b:0",
         "a:1",
@@ -853,6 +871,7 @@
           "wantNg": null,
           "wantErr": {
             "db2:REPEATABLE READ": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+            "db2:RS": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
             "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n"
           }
         },
@@ -976,6 +995,16 @@
         "b:3",
         "b:4"
       ],
+      "db2:RS": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
       "db2:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -1018,18 +1047,6 @@
       ]
     },
     "wantEnds": {
-      "(NO TRANSACTION)": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "b:3",
-        "a:4",
-        "b:4"
-      ],
       "*": [
         "a:0",
         "b:0",
@@ -1040,6 +1057,18 @@
         "b:2",
         "a:4",
         "b:3",
+        "b:4"
+      ],
+      "NO TRANSACTION": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
         "b:4"
       ],
       "SERIALIZABLE": [
@@ -1053,6 +1082,16 @@
         "a:4"
       ],
       "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "b:3",
+        "b:4"
+      ],
+      "db2:RS": [
         "a:0",
         "b:0",
         "a:1",
@@ -1157,6 +1196,7 @@
           "wantNg": null,
           "wantErr": {
             "db2:REPEATABLE READ": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+            "db2:RS": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
             "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n"
           }
         },
@@ -1260,6 +1300,16 @@
         "b:3",
         "b:4"
       ],
+      "db2:RS": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
       "db2:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -1315,6 +1365,16 @@
         "b:4"
       ],
       "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "db2:RS": [
         "a:0",
         "b:0",
         "a:1",

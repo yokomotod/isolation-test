@@ -5,7 +5,7 @@ const POSTGRES = "postgres";
 const MYSQL = "mysql";
 const SQLSERVER = "sqlserver";
 const ORACLE = "oracle";
-const DB2 = "db2"
+const DB2 = "db2";
 // const SQLITE = "sqlite";
 const databases = [
   POSTGRES,
@@ -15,12 +15,18 @@ const databases = [
   DB2,
   // SQLITE,
 ] as const;
-type Database = typeof POSTGRES | typeof MYSQL | typeof SQLSERVER | typeof ORACLE | typeof DB2;
+type Database =
+  | typeof POSTGRES
+  | typeof MYSQL
+  | typeof SQLSERVER
+  | typeof ORACLE
+  | typeof DB2;
 
-const NO_TRANSACTION = "(NO TRANSACTION)";
+const NO_TRANSACTION = "NO TRANSACTION";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
 const READ_COMMITTED = "READ COMMITTED";
-const READ_COMMITTED_SNAPSHOT = "READ COMMITTED (SNAPSHOT)";
+const READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT";
+const READ_STABILITY = "READ STABILITY";
 const REPEATABLE_READ = "REPEATABLE READ";
 const SNAPSHOT = "SNAPSHOT";
 const SERIALIZABLE = "SERIALIZABLE";
@@ -30,6 +36,7 @@ const levels = [
   READ_UNCOMMITTED,
   READ_COMMITTED,
   READ_COMMITTED_SNAPSHOT,
+  READ_STABILITY,
   REPEATABLE_READ,
   SNAPSHOT,
   SERIALIZABLE,
@@ -41,34 +48,50 @@ const levelInt: Record<string, number> = {
   [READ_UNCOMMITTED]: 1,
   [READ_COMMITTED]: 2,
   [READ_COMMITTED_SNAPSHOT]: 3,
-  [REPEATABLE_READ]: 4,
-  [SNAPSHOT]: 5,
-  [SERIALIZABLE]: 6,
+  [READ_STABILITY]: 4,
+  [REPEATABLE_READ]: 5,
+  [SNAPSHOT]: 6,
+  [SERIALIZABLE]: 7,
 };
 
 const dbLevels = {
-	[SQLSERVER]: [
-		NO_TRANSACTION,
-		READ_UNCOMMITTED,
-		READ_COMMITTED,
-		READ_COMMITTED_SNAPSHOT,
-		REPEATABLE_READ,
-		SNAPSHOT,
-		SERIALIZABLE,
-  ],
-	[ORACLE]: [
-		NO_TRANSACTION,
-		READ_COMMITTED,
-		SERIALIZABLE,
-  ],
-	"*": [
-		NO_TRANSACTION,
-		READ_UNCOMMITTED,
-		READ_COMMITTED,
-		REPEATABLE_READ,
-		SERIALIZABLE,
-  ],
-}
+  [POSTGRES]: {
+    [NO_TRANSACTION]: "no transaction",
+    [READ_UNCOMMITTED]: `${READ_UNCOMMITTED}/(${READ_COMMITTED} alias)`,
+    [READ_COMMITTED]: READ_COMMITTED,
+    [REPEATABLE_READ]: REPEATABLE_READ,
+    [SERIALIZABLE]: SERIALIZABLE,
+  },
+  [SQLSERVER]: {
+    [NO_TRANSACTION]: "no transaction",
+    [READ_UNCOMMITTED]: READ_UNCOMMITTED,
+    [READ_COMMITTED]: READ_COMMITTED,
+    [READ_COMMITTED_SNAPSHOT]: "REPEATABLE_READ (SNAPSHOT)",
+    [REPEATABLE_READ]: REPEATABLE_READ,
+    [SNAPSHOT]: SNAPSHOT,
+    [SERIALIZABLE]: SERIALIZABLE,
+  },
+  [ORACLE]: {
+    [NO_TRANSACTION]: "no transaction",
+    [READ_COMMITTED]: READ_COMMITTED,
+    [SERIALIZABLE]: SERIALIZABLE,
+  },
+  [DB2]: {
+    [NO_TRANSACTION]: "no transaction",
+    [READ_UNCOMMITTED]: `UR(Uncommitted read)/${READ_UNCOMMITTED}/DIRTY READ`,
+    [READ_COMMITTED]: `CS/CURSOR STABILITY/${READ_COMMITTED}`,
+    [READ_STABILITY]: `RS(Read stability)`,
+    [REPEATABLE_READ]: `RR/${REPEATABLE_READ}`,
+    [SERIALIZABLE]: `${SERIALIZABLE}/(RR alias)`,
+  },
+  "*": {
+    [NO_TRANSACTION]: "no transaction",
+    [READ_UNCOMMITTED]: READ_UNCOMMITTED,
+    [READ_COMMITTED]: READ_COMMITTED,
+    [REPEATABLE_READ]: REPEATABLE_READ,
+    [SERIALIZABLE]: SERIALIZABLE,
+  },
+};
 
 const defaultLevel = {
   [POSTGRES]: READ_COMMITTED,
@@ -76,7 +99,7 @@ const defaultLevel = {
   [SQLSERVER]: READ_COMMITTED,
   [ORACLE]: READ_COMMITTED,
   [DB2]: READ_COMMITTED,
-}
+};
 
 const dbNames = {
   [POSTGRES]: "PostgreSQL",
@@ -84,7 +107,7 @@ const dbNames = {
   [SQLSERVER]: "MS SQL Server",
   [ORACLE]: "Oracle Database",
   [DB2]: "IBM Db2",
-}
+};
 
 // TODO: "Read Committed" ほしい
 // TODO: "Cursor Stability" ほしい
@@ -296,72 +319,85 @@ function App() {
             <th>Level</th>
             <th>Model</th>
             {orderedSpecs.map((spec) => (
-              <th>{spec.name}</th>
+              <th key={spec.name}>{spec.name}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {databases.map((database) =>
-            getValue(dbLevels, database).map((level) => {
-              const isDefault = defaultLevel[database] == level;
+            Array.from(Object.entries(getValue(dbLevels, database))).map(
+              ([level, levelName]) => {
+                const isDefault = defaultLevel[database] == level;
 
-              return (
-                <tr>
-                  <td>{dbNames[database]}</td>
-                  <td>{level}{isDefault && "★"}</td>
-                  <td>{models[database][level]}</td>
-                  {orderedSpecs.map((spec) => {
-                    const skip =
-                      !!spec.skip && findValue(spec.skip, database, level);
-                    const ok =
-                      levelInt[level] >=
-                      levelInt[getValue(spec.threshold, database)];
-                    const err = spec.txs.some((queries) =>
-                      queries.some(
-                        (q) => q.wantErr && `${database}:${level}` in q.wantErr
-                      )
-                    );
-                    const locked = isLocked(
-                      getValue(spec.wantEnds, database, level)
-                    );
-
-                    return (
-                      <td
-                        style={{
-                          backgroundColor: skip
-                            ? "lightgray"
-                            : ok
-                            ? err
-                              ? "yellow"
-                              : locked
-                              ? "green"
-                              : "lightgreen"
-                            : "red",
-                        }}
-                      >
-                        {skip ? (
-                          "N/A"
-                        ) : (
-                          <a href={`#${spec.name}-${database}-${level}`}>
-                            {ok
-                              ? err
-                                ? "ERROR"
-                                : locked
-                                ? "LOCK"
-                                : "OK"
-                              : "NG"}
-                          </a>
+                return (
+                  <tr key={`${database}-${level}`}>
+                    <td>{dbNames[database]}</td>
+                    <td>
+                      {levelName
+                        .split("/")
+                        .reduce<React.ReactNode[]>(
+                          (acc, x) =>
+                            acc.length > 0 ? [...acc, <br />, x] : [x],
+                          []
                         )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })
+                      {isDefault && "★"}
+                    </td>
+                    <td>{models[database][level]}</td>
+                    {orderedSpecs.map((spec) => {
+                      const skip =
+                        !!spec.skip && findValue(spec.skip, database, level);
+                      const ok =
+                        levelInt[level] >=
+                        levelInt[getValue(spec.threshold, database)];
+                      const err = spec.txs.some((queries) =>
+                        queries.some(
+                          (q) =>
+                            q.wantErr && `${database}:${level}` in q.wantErr
+                        )
+                      );
+                      const locked = isLocked(
+                        getValue(spec.wantEnds, database, level)
+                      );
+
+                      return (
+                        <td
+                          key={spec.name}
+                          style={{
+                            backgroundColor: skip
+                              ? "lightgray"
+                              : ok
+                              ? err
+                                ? "yellow"
+                                : locked
+                                ? "green"
+                                : "lightgreen"
+                              : "red",
+                          }}
+                        >
+                          {skip ? (
+                            "N/A"
+                          ) : (
+                            <a href={`#${spec.name}-${database}-${level}`}>
+                              {ok
+                                ? err
+                                  ? "ERROR"
+                                  : locked
+                                  ? "LOCK"
+                                  : "OK"
+                                : "NG"}
+                            </a>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              }
+            )
           )}
         </tbody>
       </table>
-      {specs.map(Anomaly)}
+      {/* {specs.map(Anomaly)} */}
     </div>
   );
 }

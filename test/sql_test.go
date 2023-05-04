@@ -253,10 +253,11 @@ const (
 	DB2       = "db2"
 	SQLITE    = "sqlite"
 
-	NO_TRANSACTION          = "(NO TRANSACTION)"
+	NO_TRANSACTION          = "NO TRANSACTION"
 	READ_UNCOMMITTED        = "READ UNCOMMITTED"
 	READ_COMMITTED          = "READ COMMITTED"
-	READ_COMMITTED_SNAPSHOT = "READ COMMITTED (SNAPSHOT)"
+	READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT"
+	READ_STABILITY          = "RS"
 	REPEATABLE_READ         = "REPEATABLE READ"
 	SNAPSHOT                = "SNAPSHOT"
 	SERIALIZABLE            = "SERIALIZABLE"
@@ -278,6 +279,14 @@ var dbLevels = map[string][]string{
 		READ_COMMITTED,
 		SERIALIZABLE,
 	},
+	DB2: {
+		NO_TRANSACTION,
+		READ_UNCOMMITTED,
+		READ_COMMITTED,
+		READ_STABILITY,
+		REPEATABLE_READ,
+		SERIALIZABLE,
+	},
 	"*": {
 		NO_TRANSACTION,
 		READ_UNCOMMITTED,
@@ -291,9 +300,10 @@ var levelInt = map[string]int{
 	READ_UNCOMMITTED:        1,
 	READ_COMMITTED:          2,
 	READ_COMMITTED_SNAPSHOT: 3,
-	REPEATABLE_READ:         4,
-	SNAPSHOT:                5,
-	SERIALIZABLE:            6,
+	READ_STABILITY:          4,
+	REPEATABLE_READ:         5,
+	SNAPSHOT:                6,
+	SERIALIZABLE:            7,
 }
 
 func openDB(database string) (*sql.DB, error) {
@@ -522,6 +532,7 @@ var specs = []spec{
 			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			"*":                               genSeq(3, 3),
@@ -550,6 +561,7 @@ var specs = []spec{
 			},
 		},
 		Threshold: map[string]string{
+			DB2: READ_STABILITY,
 			"*": REPEATABLE_READ,
 		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
@@ -557,6 +569,7 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLITE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
@@ -677,6 +690,7 @@ var specs = []spec{
 				{Query: "BEGIN"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
 				{Query: "UPDATE foo SET value = 20 WHERE id = 1", WantErr: map[string]string{
+					DB2 + ":" + READ_STABILITY:  "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 					DB2 + ":" + REPEATABLE_READ: "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 					DB2 + ":" + SERIALIZABLE:    "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 				}},
@@ -716,6 +730,7 @@ var specs = []spec{
 			POSTGRES + ":" + REPEATABLE_READ:  genSeq(5, 3),
 			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
 			SQLSERVER + ":" + SNAPSHOT:        genSeq(5, 3),
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			"*":                               genSeq(5, 5),
@@ -728,6 +743,7 @@ var specs = []spec{
 			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // same as SERIALIZABLE
 			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
 			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
@@ -745,6 +761,7 @@ var specs = []spec{
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)}, // get X
 				{Query: "UPDATE foo SET value = 20 WHERE id = 3", // update Y to X*10
 					WantErr: map[string]string{
+						DB2 + ":" + READ_STABILITY:  "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 						DB2 + ":" + REPEATABLE_READ: "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 						DB2 + ":" + SERIALIZABLE:    "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 					},
@@ -779,6 +796,7 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE:        genSeq(5, 3),
 			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
 			SQLSERVER + ":" + SERIALIZABLE:    genSeq(5, 3),
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			"*":                               genSeq(5, 5),
@@ -787,6 +805,7 @@ var specs = []spec{
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
 			"*":                               genSeq(5, 5),
