@@ -1,5 +1,6 @@
 import "./App.css";
 import specs from "../../test/specs.json";
+import { useState } from "react";
 
 const POSTGRES = "postgres";
 const MYSQL = "mysql";
@@ -101,7 +102,7 @@ const defaultLevel = {
   [DB2]: READ_COMMITTED,
 };
 
-const dbNames = {
+const dbNames: Record<string, string> = {
   [POSTGRES]: "PostgreSQL",
   [MYSQL]: "MySQL/InnoDB",
   [SQLSERVER]: "MS SQL Server",
@@ -309,6 +310,12 @@ function isLocked(wantEnds: string[]) {
 }
 
 function App() {
+  const [selected, select] = useState<{
+    database: string;
+    level: string;
+    spec: Spec;
+  } | null>(null);
+
   return (
     <div className="App">
       <h1>zakodb</h1>
@@ -377,7 +384,9 @@ function App() {
                           {skip ? (
                             "N/A"
                           ) : (
-                            <a href={`#${spec.name}-${database}-${level}`}>
+                            <a
+                              onClick={() => select({ database, level, spec })}
+                            >
                               {ok
                                 ? err
                                   ? "ERROR"
@@ -397,69 +406,64 @@ function App() {
           )}
         </tbody>
       </table>
-      {/* {specs.map(Anomaly)} */}
+      {selected && <Anomaly database={selected.database} level={selected.level} {...selected.spec} />}
     </div>
   );
 }
 
-const Anomaly: React.FC<Spec> = ({
+const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
+  database,
+  level,
   name,
   txs,
   threshold,
   wantStarts,
   wantEnds,
-}) => (
-  <div>
-    <h2>{name}</h2>
-    {levels.map((level) => {
-      return (
-        <div key={`${name}-${level}`}>
-          <h3>{level}</h3>
-          {databases.map((database) => {
-            const ok =
-              levelInt[level] >= levelInt[getValue(threshold, database)];
+}) => {
+  const ok = levelInt[level] >= levelInt[getValue(threshold, database)];
 
-            const rows = convertTxs(
-              txs,
-              getValue(wantStarts, database, level),
-              getValue(wantEnds, database, level)
-            );
+  const rows = convertTxs(
+    txs,
+    getValue(wantStarts, database, level),
+    getValue(wantEnds, database, level)
+  );
 
-            return (
-              <div key={database} id={`${name}-${database}-${level}`}>
-                <h4>
-                  {database}: {ok ? "OK" : "NG"}
-                </h4>
-                <div>{JSON.stringify(threshold)}</div>
-                <div>{JSON.stringify(wantStarts)}</div>
-                <div>{getValue(wantStarts, database, level).join(", ")}</div>
-                <div>{getValue(wantEnds, database, level).join(", ")}</div>
-                <table border={1}>
-                  <tbody>
-                    {rows.map((steps, i) => (
-                      <Row
-                        key={i}
-                        database={database}
-                        level={level}
-                        ok={ok}
-                        steps={steps}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
+  return (
+    <div>
+      <h2>{dbNames[database]}</h2>
+      <div key={`${name}-${level}`}>
+        <h3>{level}</h3>
+        <div key={database} id={`${name}-${database}-${level}`}>
+          <h4>
+            {name}: {ok ? "OK" : "NG"}
+          </h4>
+          <div>{JSON.stringify(threshold)}</div>
+          <div>{JSON.stringify(wantStarts)}</div>
+          <div>{getValue(wantStarts, database, level).join(", ")}</div>
+          <div>{getValue(wantEnds, database, level).join(", ")}</div>
+          <table border={1}>
+            <tbody>
+              {rows.map((steps, i) => (
+                <Row
+                  key={i}
+                  database={database}
+                  level={level}
+                  ok={ok}
+                  steps={steps}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
-      );
-    })}
-  </div>
-);
+      </div>
+    </div>
+  );
+};
 
 const Row: React.FC<{
   key: number;
-  database: Database;
-  level: Level;
+  database: string;
+  level: string;
   ok: boolean;
   steps: (Partial<
     Tx & {
