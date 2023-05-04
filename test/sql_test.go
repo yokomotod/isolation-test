@@ -22,6 +22,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yokomotod/zakodb/pkg/transactonstest"
+	"golang.org/x/exp/slices"
 )
 
 func setupMySQL(ctx context.Context) (testcontainers.Container, driver.Connector, error) {
@@ -261,6 +262,7 @@ const (
 	REPEATABLE_READ         = "REPEATABLE READ"
 	SNAPSHOT                = "SNAPSHOT"
 	SERIALIZABLE            = "SERIALIZABLE"
+	NEVER                   = "NEVER"
 )
 
 var databases = []string{MYSQL, POSTGRES, SQLSERVER, ORACLE, DB2, SQLITE}
@@ -302,8 +304,9 @@ var levelInt = map[string]int{
 	READ_COMMITTED_SNAPSHOT: 3,
 	READ_STABILITY:          4,
 	REPEATABLE_READ:         5,
-	SNAPSHOT:                6,
-	SERIALIZABLE:            7,
+	SNAPSHOT:                5,
+	SERIALIZABLE:            6,
+	NEVER:                   9,
 }
 
 func openDB(database string) (*sql.DB, error) {
@@ -368,7 +371,7 @@ func getIsolationLevel(database string, level string) sql.IsolationLevel {
 	}
 }
 
-func startTransaction(database string, level string) string {
+func startTransaction(database string, level string, tx int) string {
 	if level == NO_TRANSACTION {
 		return ""
 	}
@@ -382,11 +385,11 @@ func startTransaction(database string, level string) string {
 	// 	// BEGINで指定できる
 	// 	// SET TRANSACTIONは現在のトランザクションの分離レベルを変更
 	// 	return fmt.Sprintf("BEGIN TRANSACTION ISOLATION LEVEL %s", level)
-	// case SQLSERVER:
-	// 	if level == READ_COMMITTED_SNAPSHOT {
-	// 		return "SET TRANSACTION ISOLATION LEVEL READ COMMITTED; BEGIN TRANSACTION"
-	// 	}
-	// 	return fmt.Sprintf("SET TRANSACTION ISOLATION LEVEL %s; BEGIN TRANSACTION", level)
+	case SQLSERVER:
+		if tx == 0 {
+			return "BEGIN; SET DEADLOCK_PRIORITY HIGH"
+		}
+		return "BEGIN"
 	case ORACLE:
 		return fmt.Sprintf("BEGIN; SET TRANSACTION ISOLATION LEVEL %s", level)
 	case DB2:
@@ -470,12 +473,13 @@ type query struct {
 }
 
 type spec struct {
-	Name       string              `json:"name"`
-	Txs        [][]query           `json:"txs"`
-	Threshold  map[string]string   `json:"threshold"`
-	WantStarts map[string][]string `json:"wantStarts"`
-	WantEnds   map[string][]string `json:"wantEnds"`
-	Skip       map[string]bool     `json:"skip"`
+	Name         string              `json:"name"`
+	Txs          [][]query           `json:"txs"`
+	Threshold    map[string]string   `json:"threshold"`
+	AdditionalOk map[string][]string `json:"additional_ok"`
+	WantStarts   map[string][]string `json:"wantStarts"`
+	WantEnds     map[string][]string `json:"wantEnds"`
+	Skip         map[string]bool     `json:"skip"`
 }
 
 var specs = []spec{
@@ -636,8 +640,11 @@ var specs = []spec{
 			},
 		},
 		Threshold: map[string]string{
-			SQLSERVER: SNAPSHOT,
+			SQLSERVER: SERIALIZABLE,
 			"*":       REPEATABLE_READ,
+		},
+		AdditionalOk: map[string][]string{
+			SQLSERVER: {SNAPSHOT},
 		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
@@ -741,7 +748,7 @@ var specs = []spec{
 			POSTGRES + ":" + REPEATABLE_READ:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
 			POSTGRES + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
 			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // same as SERIALIZABLE
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
 			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
 			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
@@ -768,6 +775,7 @@ var specs = []spec{
 				},
 				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(20)}, // got X*10
 				{Query: "COMMIT"},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(2), WantNG: newNullInts(40)}, // T2 should be aborted and keep Y = X * 2
 			},
 			{
 				{Query: "BEGIN"},
@@ -789,26 +797,36 @@ var specs = []spec{
 				{Query: "COMMIT", WantErr: map[string]string{
 					POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
 				}},
+				{Query: "SELECT value FROM foo WHERE id = 3", WantOK: newNullInts(4), WantNG: newNullInts(20)}, // T1 should be aborted and keep Y = X * 2
 			},
 		},
-		Threshold: map[string]string{"*": SERIALIZABLE},
+		Threshold: map[string]string{
+			ORACLE: NEVER,
+			DB2:    READ_STABILITY,
+			"*":    SERIALIZABLE,
+		},
+		AdditionalOk: map[string][]string{
+			SQLSERVER: {REPEATABLE_READ},
+		},
 		WantStarts: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:        genSeq(5, 3),
-			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
-			SQLSERVER + ":" + SERIALIZABLE:    genSeq(5, 3),
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			"*":                               genSeq(5, 5),
+			POSTGRES + ":" + SERIALIZABLE:     genSeq(6, 5),
+			MYSQL + ":" + SERIALIZABLE:        genSeq(6, 3),
+			SQLSERVER + ":" + REPEATABLE_READ: genSeq(6, 3),
+			SQLSERVER + ":" + SERIALIZABLE:    genSeq(6, 3),
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			"*":                               genSeq(6, 6),
 		},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
-			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
-			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"}, // query 0:2 is locked, query1:2 crashes
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			"*":                               genSeq(5, 5),
+			POSTGRES + ":" + SERIALIZABLE:     genSeq(6, 5),                                                    // abort on T2 commit
+			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			"*":                               genSeq(6, 6),
 		},
 		Skip: map[string]bool{
 			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
@@ -876,14 +894,15 @@ func Test(t *testing.T) {
 	}
 
 	type test struct {
-		database   string
-		level      string
-		name       string
-		txs        [][]query
-		threshold  map[string]string
-		wantStarts map[string][]string
-		wantEnds   map[string][]string
-		skip       map[string]bool
+		database     string
+		level        string
+		name         string
+		txs          [][]query
+		threshold    map[string]string
+		additionalOk map[string][]string
+		wantStarts   map[string][]string
+		wantEnds     map[string][]string
+		skip         map[string]bool
 	}
 
 	tests := make([]test, 0)
@@ -897,14 +916,15 @@ func Test(t *testing.T) {
 		for _, level := range levels {
 			for _, spec := range specs {
 				tests = append(tests, test{
-					database:   database,
-					level:      level,
-					name:       spec.Name,
-					txs:        spec.Txs,
-					threshold:  spec.Threshold,
-					wantStarts: spec.WantStarts,
-					wantEnds:   spec.WantEnds,
-					skip:       spec.Skip,
+					database:     database,
+					level:        level,
+					name:         spec.Name,
+					txs:          spec.Txs,
+					threshold:    spec.Threshold,
+					additionalOk: spec.AdditionalOk,
+					wantStarts:   spec.WantStarts,
+					wantEnds:     spec.WantEnds,
+					skip:         spec.Skip,
 				})
 			}
 		}
@@ -1002,14 +1022,16 @@ func Test(t *testing.T) {
 				threshold = v
 			}
 			ok := levelInt[tt.level] >= levelInt[threshold]
-
+			if slices.Contains(tt.additionalOk[tt.database], tt.level) {
+				ok = true
+			}
 			txs := make([][]transactonstest.Query, len(tt.txs))
 			for i, queries := range tt.txs {
 				txs[i] = make([]transactonstest.Query, len(tt.txs[i]))
 				for j, q := range queries {
 					query := q.Query
 					if query == "BEGIN" {
-						query = startTransaction(tt.database, tt.level)
+						query = startTransaction(tt.database, tt.level, i)
 					} else if query == "COMMIT" {
 						query = commit(tt.database, tt.level)
 					} else if query == "ROLLBACK" {

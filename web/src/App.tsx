@@ -27,7 +27,7 @@ const NO_TRANSACTION = "NO TRANSACTION";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
 const READ_COMMITTED = "READ COMMITTED";
 const READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT";
-const READ_STABILITY = "READ STABILITY";
+const READ_STABILITY = "RS";
 const REPEATABLE_READ = "REPEATABLE READ";
 const SNAPSHOT = "SNAPSHOT";
 const SERIALIZABLE = "SERIALIZABLE";
@@ -67,7 +67,7 @@ const dbLevels = {
     [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: READ_UNCOMMITTED,
     [READ_COMMITTED]: READ_COMMITTED,
-    [READ_COMMITTED_SNAPSHOT]: "REPEATABLE_READ (SNAPSHOT)",
+    [READ_COMMITTED_SNAPSHOT]: `${READ_COMMITTED} (SNAPSHOT)`,
     [REPEATABLE_READ]: REPEATABLE_READ,
     [SNAPSHOT]: SNAPSHOT,
     [SERIALIZABLE]: SERIALIZABLE,
@@ -138,10 +138,11 @@ const models: Record<string, Record<string, string>> = {
     [SERIALIZABLE]: "Snapshot Isolation",
   },
   [DB2]: {
-    [READ_UNCOMMITTED]: "Read Uncommitted",
-    [READ_COMMITTED]: "Monotonic Atomic View",
-    [REPEATABLE_READ]: "Monotonic Atomic View",
-    [SERIALIZABLE]: "Serializable",
+    [READ_UNCOMMITTED]: "?",
+    [READ_COMMITTED]: "?",
+    [READ_STABILITY]: "?",
+    [REPEATABLE_READ]: "?",
+    [SERIALIZABLE]: "?",
   },
 };
 
@@ -353,9 +354,17 @@ function App() {
                     {orderedSpecs.map((spec) => {
                       const skip =
                         !!spec.skip && findValue(spec.skip, database, level);
-                      const ok =
+                      let ok =
                         levelInt[level] >=
                         levelInt[getValue(spec.threshold, database)];
+
+                      if (
+                        (
+                          spec.additional_ok as Record<string, string[]> | null
+                        )?.[database]?.includes(level)
+                      ) {
+                        ok = true;
+                      }
                       const err = spec.txs.some((queries) =>
                         queries.some(
                           (q) =>
@@ -389,7 +398,7 @@ function App() {
                             >
                               {ok
                                 ? err
-                                  ? "ERROR"
+                                  ? "ABORT"
                                   : locked
                                   ? "LOCK"
                                   : "OK"
@@ -406,7 +415,13 @@ function App() {
           )}
         </tbody>
       </table>
-      {selected && <Anomaly database={selected.database} level={selected.level} {...selected.spec} />}
+      {selected && (
+        <Anomaly
+          database={selected.database}
+          level={selected.level}
+          {...selected.spec}
+        />
+      )}
     </div>
   );
 }

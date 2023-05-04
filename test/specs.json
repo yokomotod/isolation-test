@@ -69,6 +69,7 @@
     "threshold": {
       "*": "READ UNCOMMITTED"
     },
+    "additional_ok": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -175,6 +176,7 @@
       "*": "READ COMMITTED",
       "postgres": "READ UNCOMMITTED"
     },
+    "additional_ok": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -337,6 +339,7 @@
       "*": "REPEATABLE READ",
       "db2": "RS"
     },
+    "additional_ok": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -503,6 +506,7 @@
       "*": "REPEATABLE READ",
       "mysql": "SERIALIZABLE"
     },
+    "additional_ok": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -652,7 +656,12 @@
     ],
     "threshold": {
       "*": "REPEATABLE READ",
-      "sqlserver": "SNAPSHOT"
+      "sqlserver": "SERIALIZABLE"
+    },
+    "additional_ok": {
+      "sqlserver": [
+        "SNAPSHOT"
+      ]
     },
     "wantStarts": {
       "*": [
@@ -803,6 +812,7 @@
       "*": "REPEATABLE READ",
       "mysql": "SERIALIZABLE"
     },
+    "additional_ok": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -962,6 +972,7 @@
       "postgres": "REPEATABLE READ",
       "sqlserver": "REPEATABLE READ"
     },
+    "additional_ok": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -1146,8 +1157,8 @@
         "b:0",
         "a:1",
         "b:1",
-        "b:2",
         "a:2",
+        "b:2",
         "a:3",
         "a:4"
       ],
@@ -1218,6 +1229,23 @@
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "wantNg": [
+            {
+              "Int64": 40,
+              "Valid": true
+            }
+          ],
+          "wantErr": null
         }
       ],
       [
@@ -1271,11 +1299,35 @@
           "wantErr": {
             "postgres:SERIALIZABLE": "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)"
           }
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 3",
+          "want": null,
+          "wantOk": [
+            {
+              "Int64": 4,
+              "Valid": true
+            }
+          ],
+          "wantNg": [
+            {
+              "Int64": 20,
+              "Valid": true
+            }
+          ],
+          "wantErr": null
         }
       ]
     ],
     "threshold": {
-      "*": "SERIALIZABLE"
+      "*": "SERIALIZABLE",
+      "db2": "RS",
+      "oracle": "NEVER"
+    },
+    "additional_ok": {
+      "sqlserver": [
+        "REPEATABLE READ"
+      ]
     },
     "wantStarts": {
       "*": [
@@ -1288,7 +1340,9 @@
         "a:3",
         "b:3",
         "a:4",
-        "b:4"
+        "b:4",
+        "a:5",
+        "b:5"
       ],
       "db2:REPEATABLE READ": [
         "a:0",
@@ -1298,7 +1352,8 @@
         "a:2",
         "b:2",
         "b:3",
-        "b:4"
+        "b:4",
+        "b:5"
       ],
       "db2:RS": [
         "a:0",
@@ -1308,7 +1363,8 @@
         "a:2",
         "b:2",
         "b:3",
-        "b:4"
+        "b:4",
+        "b:5"
       ],
       "db2:SERIALIZABLE": [
         "a:0",
@@ -1318,7 +1374,8 @@
         "a:2",
         "b:2",
         "b:3",
-        "b:4"
+        "b:4",
+        "b:5"
       ],
       "mysql:SERIALIZABLE": [
         "a:0",
@@ -1328,7 +1385,21 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
+        "b:4",
+        "a:5"
       ],
       "sqlserver:REPEATABLE READ": [
         "a:0",
@@ -1338,7 +1409,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ],
       "sqlserver:SERIALIZABLE": [
         "a:0",
@@ -1348,7 +1420,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ]
     },
     "wantEnds": {
@@ -1362,7 +1435,9 @@
         "a:3",
         "b:3",
         "a:4",
-        "b:4"
+        "b:4",
+        "a:5",
+        "b:5"
       ],
       "db2:REPEATABLE READ": [
         "a:0",
@@ -1372,7 +1447,8 @@
         "a:2",
         "b:2",
         "b:3",
-        "b:4"
+        "b:4",
+        "b:5"
       ],
       "db2:RS": [
         "a:0",
@@ -1382,7 +1458,8 @@
         "a:2",
         "b:2",
         "b:3",
-        "b:4"
+        "b:4",
+        "b:5"
       ],
       "db2:SERIALIZABLE": [
         "a:0",
@@ -1392,7 +1469,8 @@
         "a:2",
         "b:2",
         "b:3",
-        "b:4"
+        "b:4",
+        "b:5"
       ],
       "mysql:SERIALIZABLE": [
         "a:0",
@@ -1402,7 +1480,21 @@
         "b:2",
         "a:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "a:4",
+        "b:4",
+        "a:5"
       ],
       "sqlserver:REPEATABLE READ": [
         "a:0",
@@ -1412,7 +1504,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ],
       "sqlserver:SERIALIZABLE": [
         "a:0",
@@ -1422,7 +1515,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ]
     },
     "skip": {
