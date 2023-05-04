@@ -1,6 +1,7 @@
 import "./App.css";
 import specs from "../../test/specs.json";
 import { useState } from "react";
+import { useEffect } from "react";
 
 const POSTGRES = "postgres";
 const MYSQL = "mysql";
@@ -317,12 +318,30 @@ function App() {
     spec: Spec;
   } | null>(null);
 
+  const [levelChecks, setLevelChecks] = useState<readonly boolean[]>(
+    Array(levels.length).fill(false)
+  );
+
+  const [shouldFilter, setShouldFilter] = useState(false);
+  const [checks, setChecks] = useState(new Set<string>());
+
   return (
     <div className="App">
       <h1>zakodb</h1>
+      {/* <CheckBoxes items={levels} onChange={setLevelChecks} /> */}
+      <button
+        disabled={shouldFilter || checks.size === 0}
+        onClick={() => setShouldFilter(true)}
+      >
+        絞り込み
+      </button>
+      <button disabled={!shouldFilter} onClick={() => setShouldFilter(false)}>
+        解除
+      </button>
       <table border={1}>
         <thead>
           <tr>
+            <th />
             <th>DBMS</th>
             <th>Level</th>
             <th>Model</th>
@@ -335,10 +354,36 @@ function App() {
           {databases.map((database) =>
             Array.from(Object.entries(getValue(dbLevels, database))).map(
               ([level, levelName]) => {
+                if (
+                  levelChecks.includes(true) &&
+                  !levelChecks[(levels as readonly string[]).indexOf(level)]
+                ) {
+                  return null;
+                }
+
                 const isDefault = defaultLevel[database] == level;
 
+                const key = `${database}-${level}`;
+                if (shouldFilter && !checks.has(key)) {
+                  return null;
+                }
+
                 return (
-                  <tr key={`${database}-${level}`}>
+                  <tr key={key}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        onChange={(e) => {
+                          const newChecks = new Set(checks);
+                          if (e.currentTarget.checked) {
+                            newChecks.add(key);
+                          } else {
+                            newChecks.delete(key);
+                          }
+                          setChecks(newChecks);
+                        }}
+                      />
+                    </td>
                     <td>{dbNames[database]}</td>
                     <td>
                       {levelName
@@ -365,10 +410,21 @@ function App() {
                       ) {
                         ok = true;
                       }
-                      const err = spec.txs.some((queries) =>
+                      const aborted = spec.txs.some((queries) =>
                         queries.some(
                           (q) =>
                             q.wantErr && `${database}:${level}` in q.wantErr
+                        )
+                      );
+                      const deadLocked = spec.txs.some((queries) =>
+                        queries.some(
+                          (q) =>
+                            q.wantErr &&
+                            (q.wantErr as Record<string, string> | null)?.[
+                              `${database}:${level}`
+                            ]
+                              ?.toLowerCase()
+                              ?.includes("deadlock")
                         )
                       );
                       const locked = isLocked(
@@ -382,11 +438,13 @@ function App() {
                             backgroundColor: skip
                               ? "lightgray"
                               : ok
-                              ? err
+                              ? deadLocked
+                                ? "purple"
+                                : aborted
                                 ? "yellow"
                                 : locked
-                                ? "green"
-                                : "lightgreen"
+                                ? "teal"
+                                : "lime"
                               : "red",
                           }}
                         >
@@ -397,7 +455,9 @@ function App() {
                               onClick={() => select({ database, level, spec })}
                             >
                               {ok
-                                ? err
+                                ? deadLocked
+                                  ? "DEADLOCK"
+                                  : aborted
                                   ? "ABORT"
                                   : locked
                                   ? "LOCK"
@@ -425,6 +485,39 @@ function App() {
     </div>
   );
 }
+
+const CheckBoxes: React.FC<{
+  items: readonly string[];
+  labels?: Record<string, string>;
+  onChange: (checks: readonly boolean[]) => void;
+}> = ({ items, labels, onChange }) => {
+  const [checks, setChecks] = useState(
+    Array<boolean>(items.length).fill(false)
+  );
+
+  useEffect(() => {
+    onChange(checks);
+  }, [checks]);
+
+  return (
+    <div>
+      {items.map((item, i) => (
+        <label>
+          <input
+            type="checkbox"
+            onChange={() =>
+              setChecks((prev) => {
+                prev[i] = !prev[i];
+                return [...prev];
+              })
+            }
+          />
+          {labels ? labels[item] : item}
+        </label>
+      ))}
+    </div>
+  );
+};
 
 const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
   database,
