@@ -69,7 +69,7 @@
     "threshold": {
       "*": "READ UNCOMMITTED"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -176,7 +176,7 @@
       "*": "READ COMMITTED",
       "postgres": "READ UNCOMMITTED"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -347,7 +347,7 @@
       "*": "REPEATABLE READ",
       "db2": "RS"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -514,7 +514,7 @@
       "*": "REPEATABLE READ",
       "mysql": "SERIALIZABLE"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -666,7 +666,7 @@
       "*": "REPEATABLE READ",
       "sqlserver": "SERIALIZABLE"
     },
-    "additional_ok": {
+    "additionalOk": {
       "sqlserver": [
         "SNAPSHOT"
       ]
@@ -820,7 +820,7 @@
       "*": "REPEATABLE READ",
       "mysql": "SERIALIZABLE"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -979,7 +979,7 @@
       "postgres": "REPEATABLE READ",
       "sqlserver": "REPEATABLE READ"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -1289,7 +1289,7 @@
     "threshold": {
       "*": "READ UNCOMMITTED"
     },
-    "additional_ok": null,
+    "additionalOk": null,
     "wantStarts": {
       "*": [
         "a:0",
@@ -1492,7 +1492,7 @@
       "db2": "CURSOR STABILITY",
       "postgres": "REPEATABLE READ"
     },
-    "additional_ok": {
+    "additionalOk": {
       "sqlserver": [
         "READ COMMITTED",
         "REPEATABLE READ"
@@ -1866,7 +1866,7 @@
       "db2": "RS",
       "oracle": "NEVER"
     },
-    "additional_ok": {
+    "additionalOk": {
       "sqlserver": [
         "REPEATABLE READ"
       ]

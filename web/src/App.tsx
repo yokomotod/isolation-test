@@ -293,6 +293,7 @@ type Spec = {
   name: string;
   txs: Tx[][];
   threshold: Record<string, string | undefined> & { "*": string };
+  additionalOk: Record<string, string[]> | null;
   wantStarts: Record<string, string[] | undefined> & { "*": string[] };
   wantEnds: Record<string, string[] | undefined> & { "*": string[] };
   skip: Record<string, boolean | undefined> | null;
@@ -520,7 +521,7 @@ function App() {
                     levelInt[getValue(spec.threshold, database)];
 
                   if (
-                    (spec.additional_ok as Record<string, string[]> | null)?.[
+                    (spec.additionalOk as Record<string, string[]> | null)?.[
                       database
                     ]?.includes(level)
                   ) {
@@ -636,10 +637,18 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
   name,
   txs,
   threshold,
+  additionalOk,
   wantStarts,
   wantEnds,
 }) => {
-  const ok = levelInt[level] >= levelInt[getValue(threshold, database)];
+  let ok = levelInt[level] >= levelInt[getValue(threshold, database)];
+  if (
+    (additionalOk as Record<string, string[]> | null)?.[database]?.includes(
+      level
+    )
+  ) {
+    ok = true;
+  }
 
   const rows = convertTxs(
     txs,

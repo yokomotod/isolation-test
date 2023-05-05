@@ -483,7 +483,7 @@ type spec struct {
 	Name         string              `json:"name"`
 	Txs          [][]query           `json:"txs"`
 	Threshold    map[string]string   `json:"threshold"`
-	AdditionalOk map[string][]string `json:"additional_ok"`
+	AdditionalOk map[string][]string `json:"additionalOk"`
 	WantStarts   map[string][]string `json:"wantStarts"`
 	WantEnds     map[string][]string `json:"wantEnds"`
 	Skip         map[string]bool     `json:"skip"`
