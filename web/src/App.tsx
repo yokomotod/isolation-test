@@ -28,6 +28,7 @@ const NO_TRANSACTION = "NO TRANSACTION";
 const READ_UNCOMMITTED = "READ UNCOMMITTED";
 const READ_COMMITTED = "READ COMMITTED";
 const READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT";
+const CURSOR_STABILITY = "CURSOR STABILITY";
 const READ_STABILITY = "RS";
 const REPEATABLE_READ = "REPEATABLE READ";
 const SNAPSHOT = "SNAPSHOT";
@@ -38,6 +39,7 @@ const levels = [
   READ_UNCOMMITTED,
   READ_COMMITTED,
   READ_COMMITTED_SNAPSHOT,
+  CURSOR_STABILITY,
   READ_STABILITY,
   REPEATABLE_READ,
   SNAPSHOT,
@@ -50,8 +52,9 @@ const levelInt: Record<string, number> = {
   [READ_UNCOMMITTED]: 1,
   [READ_COMMITTED]: 2,
   [READ_COMMITTED_SNAPSHOT]: 3,
-  [READ_STABILITY]: 4,
-  [REPEATABLE_READ]: 5,
+  [CURSOR_STABILITY]: 4,
+  [READ_STABILITY]: 5,
+  [REPEATABLE_READ]: 6,
   [SNAPSHOT]: 6,
   [SERIALIZABLE]: 7,
 };
@@ -94,6 +97,7 @@ const dbLevels = {
       <br />,
       READ_COMMITTED,
     ],
+    [CURSOR_STABILITY]: CURSOR_STABILITY,
     [READ_STABILITY]: `RS(Read stability)`,
     [REPEATABLE_READ]: ["RR", <br />, REPEATABLE_READ],
     [SERIALIZABLE]: `${SERIALIZABLE}/(RR alias)`,
@@ -185,6 +189,7 @@ orderedSpecs.push(
 orderedSpecs.push(
   specs.find(({ name }) => name === "lost update with locking read")!
 );
+orderedSpecs.push(specs.find(({ name }) => name === "G-cursor")!);
 
 type Tx = {
   query: string;

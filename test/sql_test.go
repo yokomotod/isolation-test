@@ -259,6 +259,7 @@ const (
 	READ_UNCOMMITTED        = "READ UNCOMMITTED"
 	READ_COMMITTED          = "READ COMMITTED"
 	READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT"
+	CURSOR_STABILITY        = "CURSOR STABILITY"
 	READ_STABILITY          = "RS"
 	REPEATABLE_READ         = "REPEATABLE READ"
 	SNAPSHOT                = "SNAPSHOT"
@@ -286,6 +287,7 @@ var dbLevels = map[string][]string{
 		NO_TRANSACTION,
 		READ_UNCOMMITTED,
 		READ_COMMITTED,
+		CURSOR_STABILITY,
 		READ_STABILITY,
 		REPEATABLE_READ,
 		SERIALIZABLE,
@@ -303,32 +305,36 @@ var levelInt = map[string]int{
 	READ_UNCOMMITTED:        1,
 	READ_COMMITTED:          2,
 	READ_COMMITTED_SNAPSHOT: 3,
-	READ_STABILITY:          4,
-	REPEATABLE_READ:         5,
-	SNAPSHOT:                5,
-	SERIALIZABLE:            6,
+	CURSOR_STABILITY:        4,
+	READ_STABILITY:          5,
+	REPEATABLE_READ:         6,
+	SNAPSHOT:                6,
+	SERIALIZABLE:            7,
 	NEVER:                   9,
 }
 
-func openDB(database string) (*sql.DB, error) {
+func openDB(database, level string) (*sql.DB, error) {
 	switch database {
 	case MYSQL:
 		return sql.Open("mysql", "root@/test?multiStatements=true")
 	case POSTGRES:
 		return sql.Open("pgx", "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 	case SQLSERVER:
-		// `CREATE DATABASE test` が必要
+		if level == READ_COMMITTED_SNAPSHOT || level == SNAPSHOT {
+			// `ALTER DATABASE test2 SET ALLOW_SNAPSHOT_ISOLATION ON`
+			// `ALTER DATABASE test2 SET READ_COMMITTED_SNAPSHOT ON``
+			return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test2;")
+		}
 		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test1;")
-	case SQLSERVER + "_snapshot":
-		// `CREATE DATABASE test2` が必要
-		// `ALTER DATABASE test2 SET ALLOW_SNAPSHOT_ISOLATION ON`
-		// `ALTER DATABASE test2 SET READ_COMMITTED_SNAPSHOT ON``
-		return sql.Open("sqlserver", "server=127.0.0.1;user id=SA;password=Passw0rd;database=test2;")
 	case ORACLE:
 		url := go_ora.BuildUrl("127.0.0.1", 1521, "XE", "system", "password", nil) // map[string]string{"DBA PRIVILEGE": "SYSDBA"},
 
 		return sql.Open("oracle", url)
 	case DB2:
+		if level == CURSOR_STABILITY {
+			// `UPDATE DATABASE CONFIGURATION for TESTDB2 USING cur_commit DISABLED`
+			return sql.Open("go_ibm_db", "HOSTNAME=127.0.0.1;DATABASE=testdb2;PORT=50000;UID=db2inst1;PWD=password")
+		}
 		return sql.Open("go_ibm_db", "HOSTNAME=127.0.0.1;DATABASE=testdb;PORT=50000;UID=db2inst1;PWD=password")
 	case SQLITE:
 		// return sql.Open("sqlite3", "file::memory:?cache=shared&_busy_timeout=5000")
@@ -537,6 +543,7 @@ var specs = []spec{
 			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
+			DB2 + ":" + CURSOR_STABILITY:      {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
@@ -778,7 +785,6 @@ var specs = []spec{
 					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
 					ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
 				}},
-				{}, // SQLSERVERでUPDATEが先行してしまうので
 				{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
 				{Query: "COMMIT"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
@@ -807,6 +813,81 @@ var specs = []spec{
 			ORACLE + ":" + NO_TRANSACTION:    true,
 			DB2:                              true,
 			SQLITE:                           true, // doesn't support SELECT ... FOR
+		},
+	},
+	{
+		// https://pmg.csail.mit.edu/papers/adya-phd.pdf
+		// Atul Adya: “Weak Consistency"ではT1のSELECTのあとT2のSELECTになっている
+		// でもそれだとCSでもロックしない？
+		Name: "G-cursor",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
+				{Query: "UPDATE foo SET value = 12 WHERE id = 1"}, // x = x + 10
+				{Query: "COMMIT"},
+				// {Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
+			},
+			{
+				{Query: "BEGIN"},
+				{},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(12), WantNG: newNullInts(2)},
+				{Query: "UPDATE foo SET value = 112 WHERE id = 1", WantErr: map[string]string{
+					// NOTE: 違反してないような気がするんだけど
+					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
+					ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
+				}}, // x = x + 100
+				{Query: "COMMIT"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(112)},
+			},
+		},
+		Threshold: map[string]string{
+			POSTGRES: REPEATABLE_READ,
+			DB2:      CURSOR_STABILITY,
+			"*":      SERIALIZABLE,
+		},
+		AdditionalOk: map[string][]string{
+			SQLSERVER: {READ_COMMITTED, REPEATABLE_READ},
+		},
+		WantStarts: map[string][]string{
+			POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 4),
+			POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 4),
+			SQLSERVER + ":" + SNAPSHOT:       genSeq(4, 4),
+			ORACLE + ":" + SERIALIZABLE:      genSeq(4, 4),
+			"*":                              genSeq(4, 6),
+		},
+		WantEnds: map[string][]string{
+			POSTGRES + ":" + REPEATABLE_READ:  genSeq(4, 4),
+			POSTGRES + ":" + SERIALIZABLE:     genSeq(4, 4),
+			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			SQLSERVER + ":" + SNAPSHOT:        genSeq(4, 4),
+			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			ORACLE + ":" + SERIALIZABLE:       genSeq(4, 4),
+			DB2 + ":" + CURSOR_STABILITY:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+			"*":                               genSeq(4, 6),
+		},
+		Skip: map[string]bool{
+			POSTGRES + ":" + NO_TRANSACTION:    true, // NGだけど値はOKになってしまう
+			POSTGRES + ":" + READ_UNCOMMITTED:  true, // NGだけど値はOKになってしまう
+			POSTGRES + ":" + REPEATABLE_READ:   true, // OKだけど値はOKじゃない
+			POSTGRES + ":" + SERIALIZABLE:      true, // OKだけど値はOKじゃない
+			MYSQL + ":" + NO_TRANSACTION:       true,
+			MYSQL + ":" + READ_UNCOMMITTED:     true,
+			SQLSERVER + ":" + NO_TRANSACTION:   true,
+			SQLSERVER + ":" + READ_UNCOMMITTED: true,
+			ORACLE + ":" + NO_TRANSACTION:      true,
+			ORACLE + ":" + READ_UNCOMMITTED:    true,
+			ORACLE + ":" + SERIALIZABLE:        true, // OKだけど値はOKじゃない
+			DB2 + ":" + NO_TRANSACTION:         true,
+			DB2 + ":" + READ_UNCOMMITTED:       true,
+			SQLITE:                             true, // doesn't support SELECT ... FOR
 		},
 	},
 
@@ -1001,13 +1082,7 @@ func Test(t *testing.T) {
 			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(10*time.Second))
 			defer cancel()
 
-			var db *sql.DB
-			if tt.level == READ_COMMITTED_SNAPSHOT || tt.level == SNAPSHOT {
-				db, err = openDB(tt.database + "_snapshot")
-
-			} else {
-				db, err = openDB(tt.database)
-			}
+			db, err := openDB(tt.database, tt.level)
 			if err != nil {
 				t.Fatal(err)
 			}

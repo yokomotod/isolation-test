@@ -204,6 +204,14 @@
         "a:2",
         "b:2"
       ],
+      "db2:CURSOR STABILITY": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "b:1",
+        "b:2"
+      ],
       "db2:REPEATABLE READ": [
         "a:0",
         "b:0",
@@ -1252,13 +1260,6 @@
           }
         },
         {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
           "query": "UPDATE foo SET value = 200 WHERE id = 1",
           "want": null,
           "wantOk": null,
@@ -1382,6 +1383,341 @@
       "sqlite": true,
       "sqlserver:NO TRANSACTION": true,
       "sqlserver:SNAPSHOT": true
+    }
+  },
+  {
+    "name": "G-cursor",
+    "txs": [
+      [
+        {
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "UPDATE foo SET value = 12 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        }
+      ],
+      [
+        {
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": null,
+          "wantOk": [
+            {
+              "Int64": 12,
+              "Valid": true
+            }
+          ],
+          "wantNg": [
+            {
+              "Int64": 2,
+              "Valid": true
+            }
+          ],
+          "wantErr": null
+        },
+        {
+          "query": "UPDATE foo SET value = 112 WHERE id = 1",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": {
+            "oracle:SERIALIZABLE": "ORA-08177: can't serialize access for this transaction\n",
+            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "sqlserver:SNAPSHOT": "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement."
+          }
+        },
+        {
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT value FROM foo WHERE id = 1",
+          "want": [
+            {
+              "Int64": 112,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        }
+      ]
+    ],
+    "threshold": {
+      "*": "SERIALIZABLE",
+      "db2": "CURSOR STABILITY",
+      "postgres": "REPEATABLE READ"
+    },
+    "additional_ok": {
+      "sqlserver": [
+        "READ COMMITTED",
+        "REPEATABLE READ"
+      ]
+    },
+    "wantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "oracle:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ],
+      "sqlserver:SNAPSHOT": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ]
+    },
+    "wantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "db2:CURSOR STABILITY": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "db2:RS": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "oracle:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ],
+      "sqlserver:READ COMMITTED": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "sqlserver:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "sqlserver:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
+      ],
+      "sqlserver:SNAPSHOT": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3"
+      ]
+    },
+    "skip": {
+      "db2:NO TRANSACTION": true,
+      "db2:READ UNCOMMITTED": true,
+      "mysql:NO TRANSACTION": true,
+      "mysql:READ UNCOMMITTED": true,
+      "oracle:NO TRANSACTION": true,
+      "oracle:READ UNCOMMITTED": true,
+      "oracle:SERIALIZABLE": true,
+      "postgres:NO TRANSACTION": true,
+      "postgres:READ UNCOMMITTED": true,
+      "postgres:REPEATABLE READ": true,
+      "postgres:SERIALIZABLE": true,
+      "sqlite": true,
+      "sqlserver:NO TRANSACTION": true,
+      "sqlserver:READ UNCOMMITTED": true
     }
   },
   {
