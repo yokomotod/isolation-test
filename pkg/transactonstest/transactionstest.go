@@ -20,6 +20,8 @@ import (
 type Query struct {
 	Query   string
 	Want    []sql.NullInt64
+	WantOK  []sql.NullInt64
+	WantNG  []sql.NullInt64
 	WantErr string
 	Compile bool
 }
@@ -48,7 +50,7 @@ type ConnOrTx interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolationLevel sql.IsolationLevel, txs [][]Query, wantStarts, wantEnds []string) {
+func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolationLevel sql.IsolationLevel, txs [][]Query, wantStarts, wantEnds []string, wantOK bool) {
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev)
 	// logger.Printf("GOMAXPROCS: %d\n", runtime.GOMAXPROCS(0))
@@ -57,6 +59,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 
 	gotStarts := make([]string, 0)
 	gotEnds := make([]string, 0)
+	gotOKs := make([]bool, len(txs))
 
 	channels := make([]chan struct{}, len(txs))
 
@@ -89,6 +92,8 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 			defer close(ch)
 
 			queries := txs[i]
+
+			ok := true
 
 			for j, q := range queries {
 				ch <- struct{}{} // 1つ目のクエリを並行実行してしまわないように最後ではなく最初に同期
@@ -123,6 +128,16 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 				}
 				ch <- struct{}{} // 結果を待つために同期
 				logger.Printf("(go %d) end   %s<[%d] %s\n", goID, ab[i], j, q.Query)
+
+				want := q.Want
+				if want == nil {
+					if wantOK {
+						want = q.WantOK
+					} else {
+						want = q.WantNG
+					}
+				}
+
 				if err != nil {
 					if q.WantErr != "" {
 						matched := err.Error() == q.WantErr
@@ -142,7 +157,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 							fmt.Printf("%#v\n", err.Error())
 							panic(err)
 						}
-					} else if err == sql.ErrNoRows && q.Want == nil {
+					} else if err == sql.ErrNoRows && want == nil {
 						// ok
 					} else {
 						// fmt.Printf("%#v\n", err)
@@ -165,11 +180,14 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 					}
 					logger.Printf("(go %d) got   %s<[%d] %+v\n", goID, ab[i], j, got)
 
-					if q.Want != nil && !reflect.DeepEqual(got, q.Want) {
-						t.Errorf("query %s:%d got=%+v, want=%+v", ab[i], j, got, q.Want)
+					if want != nil && !reflect.DeepEqual(got, want) {
+						t.Errorf("query %s:%d got=%+v, want=%+v", ab[i], j, got, want)
 					}
 					if q.WantErr != "" {
 						t.Errorf("query %s:%d got=%+v, wantErr=%s", ab[i], j, got, q.WantErr)
+					}
+					if q.WantNG != nil && reflect.DeepEqual(got, q.WantNG) {
+						ok = false
 					}
 				}
 
@@ -187,6 +205,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 				}
 			}
 
+			gotOKs[i] = ok
 			// err = tx.Commit()
 			// if err != nil {
 			// 	panic(err)
@@ -254,5 +273,15 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 		if diff := cmp.Diff(wantEnds, gotEnds); diff != "" {
 			t.Errorf("gotEnds mismatch (-want +got):\n%s", diff)
 		}
+	}
+
+	gotOK := true
+	for _, ok := range gotOKs {
+		if !ok {
+			gotOK = false
+		}
+	}
+	if gotOK != wantOK {
+		t.Errorf("gotOK: %t but wantOK: %t", gotOK, wantOK)
 	}
 }

@@ -731,7 +731,7 @@ var specs = []spec{
 			"*": SERIALIZABLE,
 		},
 		AdditionalOk: map[string][]string{
-			POSTGRES: {REPEATABLE_READ, REPEATABLE_READ_LOCK},
+			POSTGRES: {REPEATABLE_READ},
 			MYSQL:    {REPEATABLE_READ_LOCK},
 		},
 		WantStarts: map[string][]string{
@@ -1251,18 +1251,11 @@ func Test(t *testing.T) {
 						query = strings.ReplaceAll(query, " FROM foo", " FROM foo WITH(ROWLOCK, UPDLOCK)")
 					}
 
-					want := q.Want
-					if want == nil {
-						if ok {
-							want = q.WantOK
-						} else {
-							want = q.WantNG
-						}
-					}
-
 					txs[i][j] = transactonstest.Query{
 						Query:   query,
-						Want:    want,
+						Want:    q.Want,
+						WantOK:  q.WantOK,
+						WantNG:  q.WantNG,
 						WantErr: q.WantErr[tt.database+":"+tt.level],
 						Compile: q.compile[tt.database+":"+tt.level],
 					}
@@ -1289,7 +1282,7 @@ func Test(t *testing.T) {
 
 			isolationLevel := getIsolationLevel(tt.database, tt.level)
 
-			transactonstest.RunTransactionsTest(t, ctx, db, isolationLevel, txs, wantStarts, wantEnds)
+			transactonstest.RunTransactionsTest(t, ctx, db, isolationLevel, txs, wantStarts, wantEnds, ok)
 		})
 	}
 }

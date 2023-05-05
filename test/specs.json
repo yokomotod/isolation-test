@@ -987,8 +987,7 @@
         "REPEATABLE READ LOCK"
       ],
       "postgres": [
-        "REPEATABLE READ",
-        "REPEATABLE READ LOCK"
+        "REPEATABLE READ"
       ]
     },
     "wantStarts": {
