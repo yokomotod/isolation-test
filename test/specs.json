@@ -204,6 +204,14 @@
         "a:2",
         "b:2"
       ],
+      "REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "b:1",
+        "b:2"
+      ],
       "db2:CURSOR STABILITY": [
         "a:0",
         "b:0",
@@ -368,6 +376,15 @@
         "a:2",
         "b:2",
         "b:3"
+      ],
+      "REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
       ],
       "db2:REPEATABLE READ": [
         "a:0",
@@ -579,6 +596,7 @@
       ]
     },
     "skip": {
+      "REPEATABLE READ LOCK": true,
       "db2": true,
       "oracle": true,
       "sqlite": true,
@@ -590,10 +608,14 @@
     "txs": [
       [
         {
-          "query": "SELECT count(*) FROM foo",
+          "query": "SELECT id FROM foo",
           "want": [
             {
-              "Int64": 2,
+              "Int64": 1,
+              "Valid": true
+            },
+            {
+              "Int64": 3,
               "Valid": true
             }
           ],
@@ -625,7 +647,7 @@
           "wantErr": null
         },
         {
-          "query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "query": "SELECT id FROM foo WHERE id \u003c 3",
           "want": [
             {
               "Int64": 1,
@@ -637,7 +659,7 @@
           "wantErr": null
         },
         {
-          "query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "query": "SELECT id FROM foo WHERE id \u003c 3",
           "want": null,
           "wantOk": [
             {
@@ -646,6 +668,10 @@
             }
           ],
           "wantNg": [
+            {
+              "Int64": 1,
+              "Valid": true
+            },
             {
               "Int64": 2,
               "Valid": true
@@ -702,6 +728,15 @@
         "a:2"
       ],
       "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "b:3",
+        "a:2"
+      ],
+      "mysql:REPEATABLE READ LOCK": [
         "a:0",
         "b:0",
         "a:1",
@@ -775,7 +810,7 @@
           "wantErr": null
         },
         {
-          "query": "SELECT count(*) FROM foo WHERE id \u003c 3",
+          "query": "SELECT id FROM foo WHERE id \u003c 3",
           "want": [
             {
               "Int64": 1,
@@ -853,6 +888,7 @@
       ]
     },
     "skip": {
+      "REPEATABLE READ LOCK": true,
       "db2": true,
       "oracle": true,
       "sqlite": true,
@@ -1375,6 +1411,7 @@
       ]
     },
     "skip": {
+      "REPEATABLE READ LOCK": true,
       "db2": true,
       "mysql:NO TRANSACTION": true,
       "oracle:NO TRANSACTION": true,

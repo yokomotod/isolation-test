@@ -262,6 +262,7 @@ const (
 	CURSOR_STABILITY        = "CURSOR STABILITY"
 	READ_STABILITY          = "RS"
 	REPEATABLE_READ         = "REPEATABLE READ"
+	REPEATABLE_READ_LOCK    = "REPEATABLE READ LOCK"
 	SNAPSHOT                = "SNAPSHOT"
 	SERIALIZABLE            = "SERIALIZABLE"
 	NEVER                   = "NEVER"
@@ -297,6 +298,7 @@ var dbLevels = map[string][]string{
 		READ_UNCOMMITTED,
 		READ_COMMITTED,
 		REPEATABLE_READ,
+		REPEATABLE_READ_LOCK,
 		SERIALIZABLE,
 	},
 }
@@ -308,6 +310,7 @@ var levelInt = map[string]int{
 	CURSOR_STABILITY:        4,
 	READ_STABILITY:          5,
 	REPEATABLE_READ:         6,
+	REPEATABLE_READ_LOCK:    6,
 	SNAPSHOT:                6,
 	SERIALIZABLE:            7,
 	NEVER:                   9,
@@ -368,6 +371,8 @@ func getIsolationLevel(database string, level string) sql.IsolationLevel {
 	case READ_COMMITTED_SNAPSHOT:
 		return sql.LevelReadCommitted
 	case REPEATABLE_READ:
+		fallthrough
+	case REPEATABLE_READ_LOCK:
 		return sql.LevelRepeatableRead
 	case SNAPSHOT:
 		return sql.LevelSnapshot
@@ -539,6 +544,7 @@ var specs = []spec{
 			NO_TRANSACTION: genSeq(3, 3),
 			// 変な挙動だったのがなんか急に起こらなくなった
 			// SQLITE:                     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2"}, // tx0:COMMIT will be locked ?
+			REPEATABLE_READ_LOCK:              {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "b:1", "b:2"}, // SELECT is locked
@@ -578,6 +584,7 @@ var specs = []spec{
 		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
+			REPEATABLE_READ_LOCK:              {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
 			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
@@ -624,10 +631,11 @@ var specs = []spec{
 			"*":                              genSeq(3, 4),
 		},
 		Skip: map[string]bool{
-			SQLSERVER: true, // doesn't support SELECT ... FOR
-			ORACLE:    true,
-			DB2:       true,
-			SQLITE:    true, // doesn't support SELECT ... FOR
+			REPEATABLE_READ_LOCK: true,
+			SQLSERVER:            true, // doesn't support SELECT ... FOR
+			ORACLE:               true,
+			DB2:                  true,
+			SQLITE:               true, // doesn't support SELECT ... FOR
 		},
 	},
 
@@ -636,14 +644,14 @@ var specs = []spec{
 		Txs: [][]query{
 			{
 				// {},
-				{Query: "SELECT count(*) FROM foo", Want: newNullInts(2)},
+				{Query: "SELECT id FROM foo", Want: newNullInts(1, 3)},
 				{},
 				{Query: "INSERT INTO foo VALUES (2, 20)"},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT count(*) FROM foo WHERE id < 3", Want: newNullInts(1)},
-				{Query: "SELECT count(*) FROM foo WHERE id < 3", WantOK: newNullInts(1), WantNG: newNullInts(2)},
+				{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
+				{Query: "SELECT id FROM foo WHERE id < 3", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
 				{Query: "ROLLBACK"},
 			},
 		},
@@ -656,12 +664,13 @@ var specs = []spec{
 		},
 		WantStarts: map[string][]string{"*": genSeq(3, 4)},
 		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			SQLSERVER + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			DB2 + ":" + REPEATABLE_READ:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			DB2 + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			SQLITE + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			"*":                            genSeq(3, 4),
+			MYSQL + ":" + REPEATABLE_READ_LOCK: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			MYSQL + ":" + SERIALIZABLE:         {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			SQLSERVER + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			DB2 + ":" + REPEATABLE_READ:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			DB2 + ":" + SERIALIZABLE:           {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			SQLITE + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			"*":                                genSeq(3, 4),
 		},
 	},
 	{
@@ -674,7 +683,7 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT count(*) FROM foo WHERE id < 3", Want: newNullInts(1)},
+				{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
 				// note: Postgresでは集約関数でSELECT...FORは使えない
 				// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
 				{Query: "SELECT id FROM foo WHERE id < 3 FOR SHARE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
@@ -691,10 +700,11 @@ var specs = []spec{
 			"*":                        genSeq(3, 4),
 		},
 		Skip: map[string]bool{
-			SQLSERVER: true, // doesn't support SELECT ... FOR
-			ORACLE:    true,
-			DB2:       true,
-			SQLITE:    true, // doesn't support SELECT ... FOR
+			REPEATABLE_READ_LOCK: true,
+			SQLSERVER:            true, // doesn't support SELECT ... FOR
+			ORACLE:               true,
+			DB2:                  true,
+			SQLITE:               true, // doesn't support SELECT ... FOR
 		},
 	},
 
@@ -805,6 +815,7 @@ var specs = []spec{
 			"*":                              {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4", "b:2", "b:3", "b:4", "b:5"},
 		},
 		Skip: map[string]bool{
+			REPEATABLE_READ_LOCK:             true,
 			POSTGRES + ":" + NO_TRANSACTION:  true,
 			MYSQL + ":" + NO_TRANSACTION:     true,
 			SQLSERVER + ":" + NO_TRANSACTION: true,
@@ -1066,6 +1077,9 @@ func Test(t *testing.T) {
 			if v, ok := tt.skip[tt.database]; ok {
 				skip = v
 			}
+			if v, ok := tt.skip[tt.level]; ok {
+				skip = v
+			}
 			if v, ok := tt.skip[tt.database+":"+tt.level]; ok {
 				skip = v
 			}
@@ -1171,11 +1185,15 @@ func Test(t *testing.T) {
 						}
 					}
 
+					if tt.level == REPEATABLE_READ_LOCK && strings.HasPrefix(query, "SELECT") {
+						query = query + " FOR SHARE"
+					}
+
 					if tt.database == SQLSERVER && strings.Contains(query, " FOR UPDATE") {
 						query = strings.ReplaceAll(query, " FOR UPDATE", "")
 						query = strings.ReplaceAll(query, " FROM foo", " FROM foo WITH(ROWLOCK, UPDLOCK)")
-
 					}
+
 					want := q.Want
 					if want == nil {
 						if ok {
