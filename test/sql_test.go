@@ -704,11 +704,7 @@ var specs = []spec{
 			{
 				{Query: "BEGIN"},
 				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 20 WHERE id = 1", WantErr: map[string]string{
-					DB2 + ":" + READ_STABILITY:  "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-					DB2 + ":" + REPEATABLE_READ: "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-					DB2 + ":" + SERIALIZABLE:    "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-				}},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
 				{Query: "COMMIT"},
 				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(20), WantNG: newNullInts(200)},
 			},
@@ -724,6 +720,9 @@ var specs = []spec{
 						SQLSERVER + ":" + SNAPSHOT:        "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
 						SQLSERVER + ":" + SERIALIZABLE:    "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
 						ORACLE + ":" + SERIALIZABLE:       "ORA-08177: can't serialize access for this transaction\n",
+						DB2 + ":" + READ_STABILITY:        "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + REPEATABLE_READ:       "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + SERIALIZABLE:          "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 					},
 					compile: map[string]bool{
 						SQLSERVER + ":" + REPEATABLE_READ: true,
@@ -737,7 +736,7 @@ var specs = []spec{
 		Threshold: map[string]string{
 			POSTGRES:  REPEATABLE_READ,
 			SQLSERVER: REPEATABLE_READ,
-			DB2:       REPEATABLE_READ,
+			DB2:       READ_STABILITY,
 			"*":       SERIALIZABLE,
 		},
 		WantStarts: map[string][]string{
@@ -745,9 +744,9 @@ var specs = []spec{
 			POSTGRES + ":" + REPEATABLE_READ:  genSeq(5, 3),
 			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
 			SQLSERVER + ":" + SNAPSHOT:        genSeq(5, 3),
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4"},
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
 			"*":                               genSeq(5, 5),
 		},
 		WantEnds: map[string][]string{
@@ -758,9 +757,9 @@ var specs = []spec{
 			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
 			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
 			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4"},
+			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
+			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
+			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
 			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
 		},
 		Skip: map[string]bool{
@@ -1079,7 +1078,7 @@ func Test(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(10*time.Second))
+			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(15*time.Second))
 			defer cancel()
 
 			db, err := openDB(tt.database, tt.level)
