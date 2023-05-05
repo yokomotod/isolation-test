@@ -130,46 +130,78 @@ const dbNames: Record<string, string> = {
 // TODO: "Read Committed" ほしい
 // TODO: "Cursor Stability" ほしい
 const models: Record<string, Record<string, React.ReactNode>> = {
+  // [POSTGRES]: {
+  //   [READ_UNCOMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+  //   [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+  //   [REPEATABLE_READ]: ["Snapshot Isolation"],
+  //   [SERIALIZABLE]: ["Serializable Snapshot Isolation"],
+  // },
+  // [MYSQL]: {
+  //   [READ_UNCOMMITTED]: ["Read Uncommitted"],
+  //   [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+  //   [REPEATABLE_READ]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+  //   [SERIALIZABLE]: ["Serializable"],
+  // },
+  // [SQLSERVER]: {
+  //   [READ_UNCOMMITTED]: ["Read Uncommitted"],
+  //   [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
+  //   [READ_COMMITTED_SNAPSHOT]: [
+  //     "Monotonic Atomic View?",
+  //     <br />,
+  //     "Monotonic View?",
+  //   ],
+  //   [REPEATABLE_READ]: ["Repeatable Read"],
+  //   [SNAPSHOT]: ["Snapshot Isolation"],
+  //   [SERIALIZABLE]: ["Serializable"],
+  // },
+  // [ORACLE]: {
+  //   [READ_COMMITTED]: [
+  //     "Monotonic Atomic View?",
+  //     <br />,
+  //     "Monotonic View?",
+  //     <br />,
+  //     "Monotonic Snapshot Reads?",
+  //   ],
+  //   [SERIALIZABLE]: ["Snapshot Isolation"],
+  // },
+  // [DB2]: {
+  //   [READ_UNCOMMITTED]: ["Read Uncommitted?"],
+  //   [READ_COMMITTED]: ["Read Committed?", <br />, "Cursor Stability?"],
+  //   [READ_STABILITY]: ["Repeatable Read?"],
+  //   [REPEATABLE_READ]: ["Serializable?"],
+  //   [SERIALIZABLE]: ["Serializable?"],
+  // },
   [POSTGRES]: {
-    [READ_UNCOMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-    [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-    [REPEATABLE_READ]: ["Snapshot Isolation"],
-    [SERIALIZABLE]: ["Serializable Snapshot Isolation"],
+    [READ_UNCOMMITTED]: "READ COMMITTED (SNAPSHOT)",
+    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
+    [REPEATABLE_READ]: "SNAPSHOT ISOLATION",
+    [SERIALIZABLE]: "SERIALIZABLE SNAPSHOT ISOLATION",
   },
   [MYSQL]: {
-    [READ_UNCOMMITTED]: ["Read Uncommitted"],
-    [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-    [REPEATABLE_READ]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-    [SERIALIZABLE]: ["Serializable"],
+    [READ_UNCOMMITTED]: "READ UNCOMMITTED",
+    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
+    [REPEATABLE_READ]: "READ COMMITTED (SNAPSHOT + GAP LOCK)",
+    [SERIALIZABLE]: "SERIALIZABLE (LOCK)",
   },
   [SQLSERVER]: {
-    [READ_UNCOMMITTED]: ["Read Uncommitted"],
-    [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-    [READ_COMMITTED_SNAPSHOT]: [
-      "Monotonic Atomic View?",
-      <br />,
-      "Monotonic View?",
-    ],
-    [REPEATABLE_READ]: ["Repeatable Read"],
-    [SNAPSHOT]: ["Snapshot Isolation"],
-    [SERIALIZABLE]: ["Serializable"],
+    [READ_UNCOMMITTED]: "READ UNCOMMITTED",
+    [READ_COMMITTED]: "READ COMMITTED (LOCK)",
+    [READ_COMMITTED_SNAPSHOT]: "READ COMMITTED (SNAPSHOT)",
+    [REPEATABLE_READ]: "REPEATABLE READ",
+    [SNAPSHOT]: "SNAPSHOT ISOLATION",
+    [SERIALIZABLE]: "SERIALIZABLE (LOCK)",
   },
   [ORACLE]: {
-    [READ_COMMITTED]: [
-      "Monotonic Atomic View?",
-      <br />,
-      "Monotonic View?",
-      <br />,
-      "Monotonic Snapshot Reads?",
-    ],
-    [SERIALIZABLE]: ["Snapshot Isolation"],
+    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
+    [SERIALIZABLE]: "SNAPSHOT ISOLATION",
   },
   [DB2]: {
-    [READ_UNCOMMITTED]: ["Read Uncommitted?"],
-    [READ_COMMITTED]: ["Read Committed?", <br />, "Cursor Stability?"],
-    [READ_STABILITY]: ["Repeatable Read?"],
-    [REPEATABLE_READ]: ["Serializable?"],
-    [SERIALIZABLE]: ["Serializable?"],
+    [READ_UNCOMMITTED]: "READ UNCOMMITTED",
+    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
+    [CURSOR_STABILITY]: "READ COMMITTED (LOCK)",
+    [READ_STABILITY]: "REPEATABLE READ",
+    [REPEATABLE_READ]: "SERIALIZABLE (LOCK)",
+    [SERIALIZABLE]: "SERIALIZABLE (LOCK)",
   },
 };
 
@@ -190,6 +222,65 @@ orderedSpecs.push(
   specs.find(({ name }) => name === "lost update with locking read")!
 );
 orderedSpecs.push(specs.find(({ name }) => name === "G-cursor")!);
+
+const rows: { database: Database; level: string }[] = [];
+for (const database of databases) {
+  for (const level of Object.keys(getValue(dbLevels, database))) {
+    rows.push({ database, level });
+  }
+}
+const orderedRows: { database: Database; level: string }[] = [];
+orderedRows.push(
+  ...rows.filter(({ database, level }) => !models[database][level])!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) => models[database][level] === "READ UNCOMMITTED"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) => models[database][level] === "READ COMMITTED (LOCK)"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) =>
+      models[database][level] === "READ COMMITTED (SNAPSHOT)"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) => models[database][level] === "REPEATABLE READ"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) =>
+      models[database][level] === "READ COMMITTED (SNAPSHOT + GAP LOCK)"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) => models[database][level] === "SNAPSHOT ISOLATION"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) => models[database][level] === "SERIALIZABLE (LOCK)"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) =>
+      models[database][level] === "SERIALIZABLE SNAPSHOT ISOLATION"
+  )!
+);
+if (orderedRows.length !== rows.length) {
+  throw new Error(
+    `orderedRows.length !== rows.length: ${orderedRows.length}, ${rows.length}`
+  );
+}
 
 type Tx = {
   query: string;
@@ -381,122 +472,118 @@ function App() {
           </tr>
         </thead>
         <tbody>
-          {databases.map((database) =>
-            Array.from(Object.entries(getValue(dbLevels, database))).map(
-              ([level, levelName]) => {
-                if (
-                  levelChecks.includes(true) &&
-                  !levelChecks[(levels as readonly string[]).indexOf(level)]
-                ) {
-                  return null;
-                }
+          {orderedRows.map(({ database, level }) => {
+            if (
+              levelChecks.includes(true) &&
+              !levelChecks[(levels as readonly string[]).indexOf(level)]
+            ) {
+              return null;
+            }
 
-                const isDefault = defaultLevel[database] == level;
+            const levelName = (
+              getValue(dbLevels, database) as Record<string, string>
+            )[level];
+            const isDefault = defaultLevel[database] == level;
 
-                const key = `${database}-${level}`;
-                if (shouldFilter && !checks.has(key)) {
-                  return null;
-                }
+            const key = `${database}-${level}`;
+            if (shouldFilter && !checks.has(key)) {
+              return null;
+            }
 
-                return (
-                  <tr key={key}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        onChange={(e) => {
-                          const newChecks = new Set(checks);
-                          if (e.currentTarget.checked) {
-                            newChecks.add(key);
-                          } else {
-                            newChecks.delete(key);
-                          }
-                          setChecks(newChecks);
-                        }}
-                      />
-                    </td>
-                    <td>{dbNames[database]}</td>
-                    <td>
-                      {levelName}
-                      {isDefault && "★"}
-                    </td>
-                    <td>{models[database][level]}</td>
-                    {orderedSpecs.map((spec) => {
-                      const skip =
-                        !!spec.skip && findValue(spec.skip, database, level);
-                      let ok =
-                        levelInt[level] >=
-                        levelInt[getValue(spec.threshold, database)];
-
-                      if (
-                        (
-                          spec.additional_ok as Record<string, string[]> | null
-                        )?.[database]?.includes(level)
-                      ) {
-                        ok = true;
+            return (
+              <tr key={key}>
+                <td className="center">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => {
+                      const newChecks = new Set(checks);
+                      if (e.currentTarget.checked) {
+                        newChecks.add(key);
+                      } else {
+                        newChecks.delete(key);
                       }
-                      const aborted = spec.txs.some((queries) =>
-                        queries.some(
-                          (q) =>
-                            q.wantErr && `${database}:${level}` in q.wantErr
-                        )
-                      );
-                      const deadLocked = spec.txs.some((queries) =>
-                        queries.some(
-                          (q) =>
-                            q.wantErr &&
-                            (q.wantErr as Record<string, string> | null)?.[
-                              `${database}:${level}`
-                            ]
-                              ?.toLowerCase()
-                              ?.includes("deadlock")
-                        )
-                      );
-                      const locked = isLocked(
-                        getValue(spec.wantEnds, database, level)
-                      );
+                      setChecks(newChecks);
+                    }}
+                  />
+                </td>
+                <td>{dbNames[database]}</td>
+                <td>
+                  {levelName}
+                  {isDefault && "★"}
+                </td>
+                <td>{models[database][level]}</td>
+                {orderedSpecs.map((spec) => {
+                  const skip =
+                    !!spec.skip && findValue(spec.skip, database, level);
+                  let ok =
+                    levelInt[level] >=
+                    levelInt[getValue(spec.threshold, database)];
 
-                      return (
-                        <td
-                          key={spec.name}
-                          style={{
-                            backgroundColor: skip
-                              ? "lightgray"
-                              : ok
-                              ? deadLocked
-                                ? "purple"
-                                : aborted
-                                ? "yellow"
-                                : locked
-                                ? "teal"
-                                : "lime"
-                              : "red",
-                          }}
-                        >
-                          {skip ? (
-                            "N/A"
-                          ) : (
-                            <a
-                              onClick={() => select({ database, level, spec })}
-                            >
-                              {ok
-                                ? deadLocked
-                                  ? "DEADLOCK"
-                                  : aborted
-                                  ? "ABORT"
-                                  : locked
-                                  ? "LOCK"
-                                  : "OK"
-                                : "NG"}
-                            </a>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              }
-            )
-          )}
+                  if (
+                    (spec.additional_ok as Record<string, string[]> | null)?.[
+                      database
+                    ]?.includes(level)
+                  ) {
+                    ok = true;
+                  }
+                  const aborted = spec.txs.some((queries) =>
+                    queries.some(
+                      (q) => q.wantErr && `${database}:${level}` in q.wantErr
+                    )
+                  );
+                  const deadLocked = spec.txs.some((queries) =>
+                    queries.some(
+                      (q) =>
+                        q.wantErr &&
+                        (q.wantErr as Record<string, string> | null)?.[
+                          `${database}:${level}`
+                        ]
+                          ?.toLowerCase()
+                          ?.includes("deadlock")
+                    )
+                  );
+                  const locked = isLocked(
+                    getValue(spec.wantEnds, database, level)
+                  );
+
+                  return (
+                    <td
+                      key={spec.name}
+                      style={{
+                        backgroundColor: skip
+                          ? "lightgray"
+                          : ok
+                          ? deadLocked
+                            ? "purple"
+                            : aborted
+                            ? "yellow"
+                            : locked
+                            ? "teal"
+                            : "lime"
+                          : "red",
+                      }}
+                    >
+                      {skip ? (
+                        "N/A"
+                      ) : (
+                        <a onClick={() => select({ database, level, spec })}>
+                          {ok
+                            ? deadLocked
+                              ? "DEADLOCK"
+                              : aborted
+                              ? "ABORT"
+                              : locked
+                              ? "LOCK"
+                              : "OK"
+                            : "NG"}
+                        </a>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       {selected && (
