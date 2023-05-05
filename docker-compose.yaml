@@ -1,6 +1,7 @@
 version: "3.9"
 services:
   mysql:
+    # $ docker compose exec mysql mysql
     image: mysql:8.0.33
     ports:
       - "3306:3306"

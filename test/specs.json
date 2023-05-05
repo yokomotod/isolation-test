@@ -896,6 +896,240 @@
     }
   },
   {
+    "name": "phantom delete",
+    "txs": [
+      [
+        {
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "UPDATE foo set value = value + 2",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "COMMIT",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        }
+      ],
+      [
+        {
+          "query": "BEGIN",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "SELECT id FROM foo WHERE value = 4",
+          "want": [
+            {
+              "Int64": 3,
+              "Valid": true
+            }
+          ],
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
+          "query": "DELETE FROM foo where value = 4",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": {
+            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
+          }
+        },
+        {
+          "query": "SELECT id FROM foo WHERE id = 3",
+          "want": null,
+          "wantOk": [],
+          "wantNg": [
+            {
+              "Int64": 3,
+              "Valid": true
+            }
+          ],
+          "wantErr": null
+        },
+        {
+          "query": "ROLLBACK",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        }
+      ]
+    ],
+    "threshold": {
+      "*": "SERIALIZABLE"
+    },
+    "additionalOk": {
+      "mysql": [
+        "REPEATABLE READ LOCK"
+      ],
+      "postgres": [
+        "REPEATABLE READ",
+        "REPEATABLE READ LOCK"
+      ]
+    },
+    "wantStarts": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "b:4"
+      ],
+      "REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3"
+      ]
+    },
+    "wantEnds": {
+      "*": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "b:3",
+        "b:4"
+      ],
+      "READ COMMITTED": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "mysql:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "mysql:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "a:2",
+        "a:3",
+        "b:1",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "postgres:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2"
+      ],
+      "postgres:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2"
+      ]
+    },
+    "skip": {
+      "NO TRANSACTION": true,
+      "READ UNCOMMITTED": true,
+      "REPEATABLE READ LOCK": true,
+      "db2": true,
+      "mysql:SERIALIZABLE": true,
+      "oracle": true,
+      "sqlserver": true
+    }
+  },
+  {
     "name": "lost update",
     "txs": [
       [

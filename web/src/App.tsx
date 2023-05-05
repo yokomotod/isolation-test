@@ -217,6 +217,7 @@ orderedSpecs.push(specs.find(({ name }) => name === "dirty write")!);
 orderedSpecs.push(specs.find(({ name }) => name === "dirty read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "phantom read")!);
+orderedSpecs.push(specs.find(({ name }) => name === "phantom delete")!);
 orderedSpecs.push(specs.find(({ name }) => name === "lost update")!);
 orderedSpecs.push(specs.find(({ name }) => name === "write skew")!);
 orderedSpecs.push(
@@ -229,6 +230,11 @@ orderedSpecs.push(
   specs.find(({ name }) => name === "lost update with locking read")!
 );
 orderedSpecs.push(specs.find(({ name }) => name === "G-cursor")!);
+if (orderedSpecs.length !== specs.length) {
+  throw new Error(
+    `orderedSpecs.length !== specs.length: ${orderedSpecs.length}, ${specs.length}`
+  );
+}
 
 const rows: { database: Database; level: string }[] = [];
 for (const database of databases) {

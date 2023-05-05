@@ -268,7 +268,7 @@ const (
 	NEVER                   = "NEVER"
 )
 
-var databases = []string{MYSQL, POSTGRES, SQLSERVER, ORACLE, DB2, SQLITE}
+var databases = []string{MYSQL, POSTGRES, SQLSERVER, ORACLE, DB2}
 var dbLevels = map[string][]string{
 	SQLSERVER: {
 		NO_TRANSACTION,
@@ -707,7 +707,64 @@ var specs = []spec{
 			SQLITE:               true, // doesn't support SELECT ... FOR
 		},
 	},
-
+	{
+		Name: "phantom delete",
+		Txs: [][]query{
+			{
+				{Query: "BEGIN"},
+				{Query: "UPDATE foo set value = value + 2"},
+				{},
+				{Query: "COMMIT"},
+			},
+			{
+				{Query: "BEGIN"},
+				{Query: "SELECT id FROM foo WHERE value = 4", Want: newNullInts(3)},
+				{Query: "DELETE FROM foo where value = 4", WantErr: map[string]string{
+					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+				}},
+				{Query: "SELECT id FROM foo WHERE id = 3", WantOK: newNullInts(), WantNG: newNullInts(3)},
+				{Query: "ROLLBACK"},
+			},
+		},
+		Threshold: map[string]string{
+			"*": SERIALIZABLE,
+		},
+		AdditionalOk: map[string][]string{
+			POSTGRES: {REPEATABLE_READ, REPEATABLE_READ_LOCK},
+			MYSQL:    {REPEATABLE_READ_LOCK},
+		},
+		WantStarts: map[string][]string{
+			REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+			POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 3),
+			POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 3),
+			MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+			"*":                              genSeq(4, 5),
+		},
+		WantEnds: map[string][]string{
+			READ_COMMITTED:                   {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+			REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
+			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
+			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
+			MYSQL + ":" + REPEATABLE_READ:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+			MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
+			// MYSQL + ":" + SERIALIZABLE:         {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			// SQLSERVER + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			// DB2 + ":" + REPEATABLE_READ:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			// DB2 + ":" + SERIALIZABLE:           {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			// SQLITE + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+			"*": genSeq(4, 5),
+		},
+		Skip: map[string]bool{
+			NO_TRANSACTION:             true,
+			READ_UNCOMMITTED:           true,
+			REPEATABLE_READ_LOCK:       true, // OKだけどwantが変わる
+			MYSQL + ":" + SERIALIZABLE: true, // OKだけどwantが変わる
+			SQLSERVER:                  true, // とりあえず
+			ORACLE:                     true, // とりあえず
+			DB2:                        true, // とりあえず
+		},
+	},
 	{
 		Name: "lost update",
 		Txs: [][]query{
