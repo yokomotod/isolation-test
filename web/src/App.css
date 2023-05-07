@@ -2,9 +2,25 @@ table {
   border-collapse: collapse;
 }
 
+th,
 td {
   padding: 4px;
 }
 td.center {
   text-align: center;
+}
+td.top {
+  vertical-align: top;
+}
+td.bottom {
+  vertical-align: bottom;
+}
+.border-none {
+  border: none;
+}
+.border-1 {
+  border: 1px solid black;
+}
+.border-top-2 {
+  border-top: 2px solid black;
 }

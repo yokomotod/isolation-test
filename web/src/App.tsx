@@ -64,15 +64,15 @@ const levelInt: Record<string, number> = {
 
 const dbLevels = {
   [POSTGRES]: {
-    [NO_TRANSACTION]: "no transaction",
+    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: [READ_UNCOMMITTED, <br />, `(${READ_COMMITTED} alias)`],
     [READ_COMMITTED]: READ_COMMITTED,
     [REPEATABLE_READ]: REPEATABLE_READ,
-    [REPEATABLE_READ_LOCK]: `${REPEATABLE_READ} (LOCK)`,
+    // [REPEATABLE_READ_LOCK]: `${REPEATABLE_READ} (LOCK)`,
     [SERIALIZABLE]: SERIALIZABLE,
   },
   [SQLSERVER]: {
-    [NO_TRANSACTION]: "no transaction",
+    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: READ_UNCOMMITTED,
     [READ_COMMITTED]: READ_COMMITTED,
     [READ_COMMITTED_SNAPSHOT]: `${READ_COMMITTED} (SNAPSHOT)`,
@@ -81,12 +81,12 @@ const dbLevels = {
     [SERIALIZABLE]: SERIALIZABLE,
   },
   [ORACLE]: {
-    [NO_TRANSACTION]: "no transaction",
+    // [NO_TRANSACTION]: "no transaction",
     [READ_COMMITTED]: READ_COMMITTED,
     [SERIALIZABLE]: SERIALIZABLE,
   },
   [DB2]: {
-    [NO_TRANSACTION]: "no transaction",
+    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: [
       "UR(Uncommitted read)",
       <br />,
@@ -107,11 +107,11 @@ const dbLevels = {
     [SERIALIZABLE]: `${SERIALIZABLE}/(RR alias)`,
   },
   "*": {
-    [NO_TRANSACTION]: "no transaction",
+    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: READ_UNCOMMITTED,
     [READ_COMMITTED]: READ_COMMITTED,
     [REPEATABLE_READ]: REPEATABLE_READ,
-    [REPEATABLE_READ_LOCK]: `${REPEATABLE_READ} (LOCK)`,
+    // [REPEATABLE_READ_LOCK]: `${REPEATABLE_READ} (LOCK)`,
     [SERIALIZABLE]: SERIALIZABLE,
   },
 };
@@ -177,38 +177,38 @@ const models: Record<string, Record<string, React.ReactNode>> = {
   //   [SERIALIZABLE]: ["Serializable?"],
   // },
   [POSTGRES]: {
-    [READ_UNCOMMITTED]: "READ COMMITTED (SNAPSHOT)",
-    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
-    [REPEATABLE_READ]: "SNAPSHOT ISOLATION",
-    [REPEATABLE_READ_LOCK]: "SNAPSHOT ISOLATION",
-    [SERIALIZABLE]: "SERIALIZABLE SNAPSHOT ISOLATION",
+    [READ_UNCOMMITTED]: "Read Committed (Snapshot)",
+    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [REPEATABLE_READ]: "Snapshot Isolation",
+    [REPEATABLE_READ_LOCK]: "Snapshot Isolation",
+    [SERIALIZABLE]: "Serializable (Snapshot)",
   },
   [MYSQL]: {
-    [READ_UNCOMMITTED]: "READ UNCOMMITTED",
-    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
-    [REPEATABLE_READ]: "READ COMMITTED (SNAPSHOT + GAP LOCK)",
-    [REPEATABLE_READ_LOCK]: "READ COMMITTED (SNAPSHOT + GAP LOCK)",
-    [SERIALIZABLE]: "SERIALIZABLE (LOCK)",
+    [READ_UNCOMMITTED]: "Read Uncommitted",
+    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [REPEATABLE_READ]: "Snapshot Isolation",
+    [REPEATABLE_READ_LOCK]: "Read Committed (Gap Locking)",
+    [SERIALIZABLE]: "Serializable (Locking)",
   },
   [SQLSERVER]: {
-    [READ_UNCOMMITTED]: "READ UNCOMMITTED",
-    [READ_COMMITTED]: "READ COMMITTED (LOCK)",
-    [READ_COMMITTED_SNAPSHOT]: "READ COMMITTED (SNAPSHOT)",
-    [REPEATABLE_READ]: "REPEATABLE READ",
-    [SNAPSHOT]: "SNAPSHOT ISOLATION",
-    [SERIALIZABLE]: "SERIALIZABLE (LOCK)",
+    [READ_UNCOMMITTED]: "Read Uncommitted",
+    [READ_COMMITTED]: "Read Committed (Locking)",
+    [READ_COMMITTED_SNAPSHOT]: "Read Committed (Snapshot)",
+    [REPEATABLE_READ]: "Repeatable Read",
+    [SNAPSHOT]: "Snapshot Isolation",
+    [SERIALIZABLE]: "Serializable (Locking)",
   },
   [ORACLE]: {
-    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
-    [SERIALIZABLE]: "SNAPSHOT ISOLATION",
+    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [SERIALIZABLE]: "Snapshot Isolation",
   },
   [DB2]: {
-    [READ_UNCOMMITTED]: "READ UNCOMMITTED",
-    [READ_COMMITTED]: "READ COMMITTED (SNAPSHOT)",
-    [CURSOR_STABILITY]: "READ COMMITTED (LOCK)",
-    [READ_STABILITY]: "REPEATABLE READ",
-    [REPEATABLE_READ]: "SERIALIZABLE (LOCK)",
-    [SERIALIZABLE]: "SERIALIZABLE (LOCK)",
+    [READ_UNCOMMITTED]: "Read Uncommitted",
+    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [CURSOR_STABILITY]: "Read Committed (Locking)",
+    [READ_STABILITY]: "Repeatable Read",
+    [REPEATABLE_READ]: "Serializable (Locking)",
+    [SERIALIZABLE]: "Serializable (Locking)",
   },
 };
 
@@ -217,24 +217,24 @@ orderedSpecs.push(specs.find(({ name }) => name === "dirty write")!);
 orderedSpecs.push(specs.find(({ name }) => name === "dirty read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "phantom read")!);
-orderedSpecs.push(specs.find(({ name }) => name === "phantom delete")!);
+// orderedSpecs.push(specs.find(({ name }) => name === "phantom delete")!);
 orderedSpecs.push(specs.find(({ name }) => name === "lost update")!);
 orderedSpecs.push(specs.find(({ name }) => name === "write skew")!);
-orderedSpecs.push(
-  specs.find(({ name }) => name === "fuzzy read with locking read")!
-);
-orderedSpecs.push(
-  specs.find(({ name }) => name === "phantom read with locking read")!
-);
-orderedSpecs.push(
-  specs.find(({ name }) => name === "lost update with locking read")!
-);
-orderedSpecs.push(specs.find(({ name }) => name === "G-cursor")!);
-if (orderedSpecs.length !== specs.length) {
-  throw new Error(
-    `orderedSpecs.length !== specs.length: ${orderedSpecs.length}, ${specs.length}`
-  );
-}
+// orderedSpecs.push(
+//   specs.find(({ name }) => name === "fuzzy read with locking read")!
+// );
+// orderedSpecs.push(
+//   specs.find(({ name }) => name === "phantom read with locking read")!
+// );
+// orderedSpecs.push(
+//   specs.find(({ name }) => name === "lost update with locking read")!
+// );
+// orderedSpecs.push(specs.find(({ name }) => name === "G-cursor")!);
+// if (orderedSpecs.length !== specs.length) {
+//   throw new Error(
+//     `orderedSpecs.length !== specs.length: ${orderedSpecs.length}, ${specs.length}`
+//   );
+// }
 
 const rows: { database: Database; level: string }[] = [];
 for (const database of databases) {
@@ -248,45 +248,47 @@ orderedRows.push(
 );
 orderedRows.push(
   ...rows.filter(
-    ({ database, level }) => models[database][level] === "READ UNCOMMITTED"
-  )!
-);
-orderedRows.push(
-  ...rows.filter(
-    ({ database, level }) => models[database][level] === "READ COMMITTED (LOCK)"
+    ({ database, level }) => models[database][level] === "Read Uncommitted"
   )!
 );
 orderedRows.push(
   ...rows.filter(
     ({ database, level }) =>
-      models[database][level] === "READ COMMITTED (SNAPSHOT)"
-  )!
-);
-orderedRows.push(
-  ...rows.filter(
-    ({ database, level }) => models[database][level] === "REPEATABLE READ"
+      models[database][level] === "Read Committed (Locking)"
   )!
 );
 orderedRows.push(
   ...rows.filter(
     ({ database, level }) =>
-      models[database][level] === "READ COMMITTED (SNAPSHOT + GAP LOCK)"
+      models[database][level] === "Read Committed (Snapshot)"
   )!
 );
 orderedRows.push(
   ...rows.filter(
-    ({ database, level }) => models[database][level] === "SNAPSHOT ISOLATION"
-  )!
-);
-orderedRows.push(
-  ...rows.filter(
-    ({ database, level }) => models[database][level] === "SERIALIZABLE (LOCK)"
+    ({ database, level }) => models[database][level] === "Repeatable Read"
   )!
 );
 orderedRows.push(
   ...rows.filter(
     ({ database, level }) =>
-      models[database][level] === "SERIALIZABLE SNAPSHOT ISOLATION"
+      models[database][level] === "Read Committed (Gap Locking)"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) => models[database][level] === "Snapshot Isolation"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) =>
+      models[database][level] === "Serializable (Locking)"
+  )!
+);
+orderedRows.push(
+  ...rows.filter(
+    ({ database, level }) =>
+      models[database][level] === "Serializable (Snapshot)"
   )!
 );
 if (orderedRows.length !== rows.length) {
@@ -460,6 +462,9 @@ function App() {
   const [shouldFilter, setShouldFilter] = useState(false);
   const [checks, setChecks] = useState(new Set<string>());
 
+  let currentRow: { database: string; level: string } | undefined;
+  let prevRow: { database: string; level: string } | undefined;
+
   return (
     <div className="App">
       <h1>zakodb</h1>
@@ -478,7 +483,7 @@ function App() {
           <tr>
             <th />
             <th>DBMS</th>
-            <th>Level</th>
+            <th>設定値 (★:デフォルト)</th>
             <th>Model</th>
             {orderedSpecs.map((spec) => (
               <th key={spec.name}>{spec.name}</th>
@@ -494,6 +499,9 @@ function App() {
               return null;
             }
 
+            prevRow = currentRow;
+            currentRow = { database, level };
+
             const levelName = (
               getValue(dbLevels, database) as Record<string, string>
             )[level];
@@ -505,7 +513,16 @@ function App() {
             }
 
             return (
-              <tr key={key}>
+              <tr
+                key={key}
+                className={
+                  prevRow &&
+                  models[prevRow.database][prevRow.level] !=
+                    models[database][level]
+                    ? "border-top-2"
+                    : undefined
+                }
+              >
                 <td className="center">
                   <input
                     type="checkbox"
@@ -563,33 +580,34 @@ function App() {
                   return (
                     <td
                       key={spec.name}
-                      style={{
-                        backgroundColor: skip
-                          ? "lightgray"
-                          : ok
-                          ? deadLocked
-                            ? "purple"
-                            : aborted
-                            ? "yellow"
-                            : locked
-                            ? "teal"
-                            : "lime"
-                          : "red",
-                      }}
+                      className="center"
+                      // style={{
+                      //   backgroundColor: skip
+                      //     ? "lightgray"
+                      //     : ok
+                      //     ? deadLocked
+                      //       ? "purple"
+                      //       : aborted
+                      //       ? "yellow"
+                      //       : locked
+                      //       ? "teal"
+                      //       : "lime"
+                      //     : "red",
+                      // }}
                     >
                       {skip ? (
-                        "N/A"
+                        "n/a"
                       ) : (
                         <a onClick={() => select({ database, level, spec })}>
                           {ok
                             ? deadLocked
-                              ? "DEADLOCK"
+                              ? ["◯", <br />, "(deadlock)"]
                               : aborted
-                              ? "ABORT"
+                              ? ["◯", <br />, "(aborted)"]
                               : locked
-                              ? "LOCK"
-                              : "OK"
-                            : "NG"}
+                              ? ["◯", <br />, "(locked)"]
+                              : "◯"
+                            : "×"}
                         </a>
                       )}
                     </td>
@@ -682,11 +700,21 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
           <div>{JSON.stringify(wantStarts)}</div>
           <div>{getValue(wantStarts, database, level).join(", ")}</div>
           <div>{getValue(wantEnds, database, level).join(", ")}</div>
-          <table border={1}>
+          <table>
+            <thead>
+              <th>時刻</th>
+              {txs.map((_, i) => (
+                <>
+                  {i > 0 && <th />}
+                  <th>トランザクション{i + 1}</th>
+                  <th />
+                </>
+              ))}
+            </thead>
             <tbody>
-              {rows.map((steps, i) => (
+              {rows.map((steps, time) => (
                 <Row
-                  key={i}
+                  time={time}
                   database={database}
                   level={level}
                   ok={ok}
@@ -702,7 +730,7 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
 };
 
 const Row: React.FC<{
-  key: number;
+  time: number;
   database: string;
   level: string;
   ok: boolean;
@@ -711,8 +739,9 @@ const Row: React.FC<{
       rowspan: number;
     }
   > | null)[];
-}> = ({ key, database, level, ok, steps }) => (
-  <tr key={key}>
+}> = ({ time, database, level, ok, steps }) => (
+  <tr key={time}>
+    <td>t{time + 1}</td>
     {steps.map((step, j) => {
       if (!step) {
         return null;
@@ -722,8 +751,15 @@ const Row: React.FC<{
 
       return (
         <>
-          <td rowSpan={step.rowspan}>{step.query || "-"}</td>
-          <td rowSpan={step.rowspan} style={{ minWidth: 24 }}>
+          {j > 0 && <td />}
+          <td className="border-1 top" rowSpan={step.rowspan}>
+            {step.query || "-"}
+          </td>
+          <td
+            className="border-1 bottom"
+            rowSpan={step.rowspan}
+            style={{ minWidth: 24 }}
+          >
             {wantErr ? (
               <div>
                 <span>{wantErr}</span>
