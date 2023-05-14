@@ -31,7 +31,7 @@ const READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT";
 const CURSOR_STABILITY = "CURSOR STABILITY";
 const READ_STABILITY = "RS";
 const REPEATABLE_READ = "REPEATABLE READ";
-const REPEATABLE_READ_LOCK = "REPEATABLE READ LOCK";
+// const REPEATABLE_READ_LOCK = "REPEATABLE READ LOCK";
 const SNAPSHOT = "SNAPSHOT";
 const SERIALIZABLE = "SERIALIZABLE";
 
@@ -43,7 +43,7 @@ const levels = [
   CURSOR_STABILITY,
   READ_STABILITY,
   REPEATABLE_READ,
-  REPEATABLE_READ_LOCK,
+  // REPEATABLE_READ_LOCK,
   SNAPSHOT,
   SERIALIZABLE,
 ] as const;
@@ -57,7 +57,7 @@ const levelInt: Record<string, number> = {
   [CURSOR_STABILITY]: 4,
   [READ_STABILITY]: 5,
   [REPEATABLE_READ]: 6,
-  [REPEATABLE_READ_LOCK]: 6,
+  // [REPEATABLE_READ_LOCK]: 6,
   [SNAPSHOT]: 6,
   [SERIALIZABLE]: 7,
 };
@@ -177,34 +177,34 @@ const models: Record<string, Record<string, React.ReactNode>> = {
   //   [SERIALIZABLE]: ["Serializable?"],
   // },
   [POSTGRES]: {
-    [READ_UNCOMMITTED]: "Read Committed (Snapshot)",
-    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [READ_UNCOMMITTED]: "Read Committed (MVCC)",
+    [READ_COMMITTED]: "Read Committed (MVCC)",
     [REPEATABLE_READ]: "Snapshot Isolation",
-    [REPEATABLE_READ_LOCK]: "Snapshot Isolation",
-    [SERIALIZABLE]: "Serializable (Snapshot)",
+    // [REPEATABLE_READ_LOCK]: "Snapshot Isolation",
+    [SERIALIZABLE]: "Serializable (MVCC)",
   },
   [MYSQL]: {
     [READ_UNCOMMITTED]: "Read Uncommitted",
-    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [READ_COMMITTED]: "Read Committed (MVCC)",
     [REPEATABLE_READ]: "Snapshot Isolation",
-    [REPEATABLE_READ_LOCK]: "Read Committed (Gap Locking)",
+    // [REPEATABLE_READ_LOCK]: "Read Committed (Gap Locking)",
     [SERIALIZABLE]: "Serializable (Locking)",
   },
   [SQLSERVER]: {
     [READ_UNCOMMITTED]: "Read Uncommitted",
     [READ_COMMITTED]: "Read Committed (Locking)",
-    [READ_COMMITTED_SNAPSHOT]: "Read Committed (Snapshot)",
+    [READ_COMMITTED_SNAPSHOT]: "Read Committed (MVCC)",
     [REPEATABLE_READ]: "Repeatable Read",
     [SNAPSHOT]: "Snapshot Isolation",
     [SERIALIZABLE]: "Serializable (Locking)",
   },
   [ORACLE]: {
-    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [READ_COMMITTED]: "Read Committed (MVCC)",
     [SERIALIZABLE]: "Snapshot Isolation",
   },
   [DB2]: {
     [READ_UNCOMMITTED]: "Read Uncommitted",
-    [READ_COMMITTED]: "Read Committed (Snapshot)",
+    [READ_COMMITTED]: "Read Committed (MVCC)",
     [CURSOR_STABILITY]: "Read Committed (Locking)",
     [READ_STABILITY]: "Repeatable Read",
     [REPEATABLE_READ]: "Serializable (Locking)",
@@ -213,7 +213,7 @@ const models: Record<string, Record<string, React.ReactNode>> = {
 };
 
 const orderedSpecs: typeof specs = [];
-orderedSpecs.push(specs.find(({ name }) => name === "dirty write")!);
+// orderedSpecs.push(specs.find(({ name }) => name === "dirty write")!);
 orderedSpecs.push(specs.find(({ name }) => name === "dirty read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "phantom read")!);
@@ -259,8 +259,7 @@ orderedRows.push(
 );
 orderedRows.push(
   ...rows.filter(
-    ({ database, level }) =>
-      models[database][level] === "Read Committed (Snapshot)"
+    ({ database, level }) => models[database][level] === "Read Committed (MVCC)"
   )!
 );
 orderedRows.push(
@@ -287,8 +286,7 @@ orderedRows.push(
 );
 orderedRows.push(
   ...rows.filter(
-    ({ database, level }) =>
-      models[database][level] === "Serializable (Snapshot)"
+    ({ database, level }) => models[database][level] === "Serializable (MVCC)"
   )!
 );
 if (orderedRows.length !== rows.length) {
@@ -296,19 +294,20 @@ if (orderedRows.length !== rows.length) {
     `orderedRows.length !== rows.length: ${orderedRows.length}, ${rows.length}`
   );
 }
+orderedRows.splice(0, orderedRows.length, ...rows);
 
 type Tx = {
   query: string;
-  want: { Int64: number }[] | null;
-  wantOk: { Int64: number }[] | null;
-  wantNg: { Int64: number }[] | null;
+  want: Record<string, { Int64: number }[] | null | undefined> | null;
+  wantOk: Record<string, { Int64: number }[] | null | undefined> | null;
+  wantNg: Record<string, { Int64: number }[] | null | undefined> | null;
   wantErr: Record<string, string | undefined> | null;
 };
 type Spec = {
   name: string;
   txs: Tx[][];
   threshold: Record<string, string | undefined> & { "*": string };
-  additionalOk: Record<string, string[]> | null;
+  additionalOk: Record<string, string[] | undefined> | null;
   wantStarts: Record<string, string[] | undefined> & { "*": string[] };
   wantEnds: Record<string, string[] | undefined> & { "*": string[] };
   skip: Record<string, boolean | undefined> | null;
@@ -409,7 +408,9 @@ function findValue<T>(
   k1: string,
   k2?: string
 ): T | undefined {
-  return map[`${k1}:${k2}`] || map[k1] || (k2 && map[k2]) || undefined;
+  return (
+    map[`${k1}:${k2}`] || map[k1] || (k2 && map[k2]) || map["*"] || undefined
+  );
 }
 
 function getValue<T>(
@@ -478,10 +479,10 @@ function App() {
       <button disabled={!shouldFilter} onClick={() => setShouldFilter(false)}>
         解除
       </button>
-      <table border={1}>
+      <table border={1} className="margin-top-8">
         <thead>
           <tr>
-            <th />
+            {!shouldFilter && <th />}
             <th>DBMS</th>
             <th>設定値 (★:デフォルト)</th>
             <th>Model</th>
@@ -515,28 +516,30 @@ function App() {
             return (
               <tr
                 key={key}
-                className={
-                  prevRow &&
-                  models[prevRow.database][prevRow.level] !=
-                    models[database][level]
-                    ? "border-top-2"
-                    : undefined
-                }
+                // className={
+                //   prevRow &&
+                //   models[prevRow.database][prevRow.level] !=
+                //     models[database][level]
+                //     ? "border-top-2"
+                //     : undefined
+                // }
               >
-                <td className="center">
-                  <input
-                    type="checkbox"
-                    onChange={(e) => {
-                      const newChecks = new Set(checks);
-                      if (e.currentTarget.checked) {
-                        newChecks.add(key);
-                      } else {
-                        newChecks.delete(key);
-                      }
-                      setChecks(newChecks);
-                    }}
-                  />
-                </td>
+                {!shouldFilter && (
+                  <td className="center">
+                    <input
+                      type="checkbox"
+                      onChange={(e) => {
+                        const newChecks = new Set(checks);
+                        if (e.currentTarget.checked) {
+                          newChecks.add(key);
+                        } else {
+                          newChecks.delete(key);
+                        }
+                        setChecks(newChecks);
+                      }}
+                    />
+                  </td>
+                )}
                 <td>{dbNames[database]}</td>
                 <td>
                   {levelName}
@@ -696,22 +699,37 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
           <h4>
             {name}: {ok ? "OK" : "NG"}
           </h4>
-          <div>{JSON.stringify(threshold)}</div>
-          <div>{JSON.stringify(wantStarts)}</div>
-          <div>{getValue(wantStarts, database, level).join(", ")}</div>
-          <div>{getValue(wantEnds, database, level).join(", ")}</div>
-          <table>
+          <div>threshold: {JSON.stringify(threshold)}</div>
+          <div>wantStarts: {JSON.stringify(wantStarts)}</div>
+          <div>wantEnds: {JSON.stringify(wantEnds)}</div>
+          <div>
+            wantStarts: {getValue(wantStarts, database, level).join(", ")}
+          </div>
+          <div>wantEnds: {getValue(wantEnds, database, level).join(", ")}</div>
+          <table className="margin-top-8">
             <thead>
-              <th>時刻</th>
-              {txs.map((_, i) => (
-                <>
-                  {i > 0 && <th />}
-                  <th>トランザクション{i + 1}</th>
-                  <th />
-                </>
-              ))}
+              <tr>
+                <th className="border-1 bottom" rowSpan={2}>
+                  時刻
+                </th>
+                {txs.map((_, i) => (
+                  <>
+                    <th className="border-1 border-left-2" colSpan={2}>
+                      トランザクション{i + 1}
+                    </th>
+                  </>
+                ))}
+              </tr>
+              <tr>
+                {txs.map((_, i) => (
+                  <>
+                    <th className="border-1 border-left-2">クエリ</th>
+                    <th className="border-1 bottom">結果</th>
+                  </>
+                ))}
+              </tr>
             </thead>
-            <tbody>
+            <tbody className="border-top-2">
               {rows.map((steps, time) => (
                 <Row
                   time={time}
@@ -741,18 +759,26 @@ const Row: React.FC<{
   > | null)[];
 }> = ({ time, database, level, ok, steps }) => (
   <tr key={time}>
-    <td>t{time + 1}</td>
+    <td className="border-1 center">t{time + 1}</td>
     {steps.map((step, j) => {
       if (!step) {
         return null;
       }
 
-      const wantErr = step.wantErr?.[`${database}:${level}`];
+      const want = step.want && findValue(step.want, database, level);
+      const wantOk =
+        step.want != undefined
+          ? undefined
+          : step.wantOk && findValue(step.wantOk, database, level);
+      const wantNg =
+        step.want != undefined
+          ? undefined
+          : step.wantNg && findValue(step.wantNg, database, level);
+      const wantErr = step.wantErr && findValue(step.wantErr, database, level);
 
       return (
         <>
-          {j > 0 && <td />}
-          <td className="border-1 top" rowSpan={step.rowspan}>
+          <td className="border-1 border-left-2 top" rowSpan={step.rowspan}>
             {step.query || "-"}
           </td>
           <td
@@ -762,35 +788,40 @@ const Row: React.FC<{
           >
             {wantErr ? (
               <div>
-                <span>{wantErr}</span>
+                <span>
+                  {wantErr.includes("deadlock") ? "Deadlock Error" : "Abort"}
+                </span>
               </div>
-            ) : step.wantOk && step.wantNg ? (
+            ) : wantOk && wantNg ? (
               <div>
                 <span
                   style={
                     ok
-                      ? { color: "green" }
+                      ? // ? { color: "green" }
+                        undefined
                       : {
                           textDecorationLine: "line-through",
                         }
                   }
                 >
-                  {step.wantOk.map((want) => want.Int64)}
+                  ○: {wantOk.map((want) => want.Int64).join(", ")}
                 </span>
+                <br />
                 <span
                   style={
                     ok
                       ? {
                           textDecorationLine: "line-through",
                         }
-                      : { color: "red" }
+                      : // : { color: "red" }
+                        undefined
                   }
                 >
-                  {step.wantNg.map((want) => want.Int64)}
+                  ×: {wantNg.map((want) => want.Int64).join(", ")}
                 </span>
               </div>
-            ) : step.want ? (
-              <span>{step.want.map((want) => want.Int64)}</span>
+            ) : want ? (
+              <span>{want.map((want) => want.Int64).join(", ")}</span>
             ) : null}
           </td>
         </>

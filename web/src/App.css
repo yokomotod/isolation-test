@@ -6,13 +6,13 @@ th,
 td {
   padding: 4px;
 }
-td.center {
+.center {
   text-align: center;
 }
-td.top {
+.top {
   vertical-align: top;
 }
-td.bottom {
+.bottom {
   vertical-align: bottom;
 }
 .border-none {
@@ -23,4 +23,12 @@ td.bottom {
 }
 .border-top-2 {
   border-top: 2px solid black;
+}
+
+.border-left-2 {
+  border-left: 2px solid black;
+}
+
+.margin-top-8 {
+  margin-top: 8px;
 }

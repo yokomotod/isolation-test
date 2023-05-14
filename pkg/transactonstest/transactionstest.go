@@ -39,7 +39,7 @@ func getGoID() int {
 }
 
 var (
-	stepSleep = 10 * time.Millisecond
+	stepSleep = 50 * time.Millisecond // `sqlserver/READ_UNCOMMITTED/lost_update_with_locking_read` が20msでもなおずれる
 	waitSleep = 50 * time.Millisecond
 )
 
@@ -106,9 +106,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 				if strings.Contains(q.Query, "BEGIN") {
 					qs := strings.Split(q.Query, "; ")
 					for _, q := range qs {
-						fmt.Println(q)
 						if strings.HasPrefix(q, "BEGIN") {
-							fmt.Println("db.BeginTx()")
 							conn, err = db.BeginTx(ctx, &sql.TxOptions{Isolation: isolationLevel})
 						} else {
 							_, err = conn.ExecContext(ctx, q)
@@ -187,6 +185,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 						t.Errorf("query %s:%d got=%+v, wantErr=%s", ab[i], j, got, q.WantErr)
 					}
 					if q.WantNG != nil && reflect.DeepEqual(got, q.WantNG) {
+						logger.Printf("query %s:%d got=%+v, wantNG=%+v", ab[i], j, got, q.WantNG)
 						ok = false
 					}
 				}
@@ -205,6 +204,7 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 				}
 			}
 
+			logger.Printf("(go %d) ok: %t\n", goID, ok)
 			gotOKs[i] = ok
 			// err = tx.Commit()
 			// if err != nil {
@@ -266,12 +266,12 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 	}
 
 	if diff := cmp.Diff(wantStarts, gotStarts); diff != "" {
-		t.Errorf("gotStarts mismatch (-want +got):\n%s", diff)
+		t.Errorf("gotStarts mismatch (-want +got):\n%s\ngot: %#v", diff, gotStarts)
 	}
 
 	if wantEnds != nil {
 		if diff := cmp.Diff(wantEnds, gotEnds); diff != "" {
-			t.Errorf("gotEnds mismatch (-want +got):\n%s", diff)
+			t.Errorf("gotEnds mismatch (-want +got):\n%s\ngot: %#v", diff, gotEnds)
 		}
 	}
 

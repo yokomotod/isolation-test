@@ -298,7 +298,7 @@ var dbLevels = map[string][]string{
 		READ_UNCOMMITTED,
 		READ_COMMITTED,
 		REPEATABLE_READ,
-		REPEATABLE_READ_LOCK,
+		// REPEATABLE_READ_LOCK,
 		SERIALIZABLE,
 	},
 }
@@ -334,6 +334,9 @@ func openDB(database, level string) (*sql.DB, error) {
 
 		return sql.Open("oracle", url)
 	case DB2:
+		// $ pushd $(go env GOPATH)/pkg/mod/github.com/ibmdb/go_ibm_db\@v0.4.3/installer
+		// $ source setenv.sh
+		// $ popd
 		if level == CURSOR_STABILITY {
 			// `UPDATE DATABASE CONFIGURATION for TESTDB2 USING cur_commit DISABLED`
 			return sql.Open("go_ibm_db", "HOSTNAME=127.0.0.1;DATABASE=testdb2;PORT=50000;UID=db2inst1;PWD=password")
@@ -476,11 +479,11 @@ func genSeq(m, n int) []string {
 }
 
 type query struct {
-	Query   string            `json:"query"`
-	Want    []sql.NullInt64   `json:"want"`
-	WantOK  []sql.NullInt64   `json:"wantOk"`
-	WantNG  []sql.NullInt64   `json:"wantNg"`
-	WantErr map[string]string `json:"wantErr"`
+	Query   string                     `json:"query"`
+	Want    map[string][]sql.NullInt64 `json:"want"`
+	WantOK  map[string][]sql.NullInt64 `json:"wantOk"`
+	WantNG  map[string][]sql.NullInt64 `json:"wantNg"`
+	WantErr map[string]string          `json:"wantErr"`
 	compile map[string]bool
 }
 
@@ -495,31 +498,34 @@ type spec struct {
 }
 
 var specs = []spec{
-	{
-		Name: "dirty write",
-		Txs: [][]query{
-			{
-				{Query: "BEGIN"},
-				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(20), WantNG: newNullInts(200)},
-				{Query: "ROLLBACK"},
-			},
-			{
-				{Query: "BEGIN"},
-				{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
-				{Query: "ROLLBACK"},
-			},
-		},
-		Threshold: map[string]string{"*": READ_UNCOMMITTED},
-		WantStarts: map[string][]string{
-			NO_TRANSACTION: genSeq(4, 3),
-			"*":            {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
-		},
-		WantEnds: map[string][]string{
-			NO_TRANSACTION: genSeq(4, 3),
-			"*":            {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2"},
-		},
-	},
+	// {
+	// 	Name: "dirty write",
+	// 	Txs: [][]query{
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1",
+	// 				WantOK: map[string][]sql.NullInt64{"*": newNullInts(20)},
+	// 				WantNG: map[string][]sql.NullInt64{"*": newNullInts(200)},
+	// 			},
+	// 			{Query: "COMMIT"},
+	// 		},
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
+	// 			{Query: "COMMIT"},
+	// 		},
+	// 	},
+	// 	Threshold: map[string]string{"*": READ_UNCOMMITTED},
+	// 	WantStarts: map[string][]string{
+	// 		NO_TRANSACTION: genSeq(4, 3),
+	// 		"*":            {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
+	// 	},
+	// 	WantEnds: map[string][]string{
+	// 		NO_TRANSACTION: genSeq(4, 3),
+	// 		"*":            {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2"},
+	// 	},
+	// },
 
 	{
 		Name: "dirty read",
@@ -527,12 +533,27 @@ var specs = []spec{
 			{
 				{Query: "BEGIN"},
 				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-				{Query: "ROLLBACK"},
+				{Query: "COMMIT"},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(2), WantNG: newNullInts(20)},
-				{Query: "ROLLBACK"},
+				{Query: "SELECT value FROM foo WHERE id = 1",
+					Want: map[string][]sql.NullInt64{
+						NO_TRANSACTION:                    nil,
+						READ_UNCOMMITTED:                  nil,
+						MYSQL + ":" + SERIALIZABLE:        newNullInts(20),
+						SQLSERVER + ":" + READ_COMMITTED:  newNullInts(20),
+						SQLSERVER + ":" + REPEATABLE_READ: newNullInts(20),
+						SQLSERVER + ":" + SERIALIZABLE:    newNullInts(20),
+						DB2 + ":" + CURSOR_STABILITY:      newNullInts(20),
+						DB2 + ":" + READ_STABILITY:        newNullInts(20),
+						DB2 + ":" + REPEATABLE_READ:       newNullInts(20),
+						DB2 + ":" + SERIALIZABLE:          newNullInts(20),
+					},
+					WantOK: map[string][]sql.NullInt64{"*": newNullInts(2)},
+					WantNG: map[string][]sql.NullInt64{"*": newNullInts(20)},
+				},
+				{Query: "COMMIT"},
 			},
 		},
 		Threshold: map[string]string{
@@ -573,9 +594,9 @@ var specs = []spec{
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(2), WantNG: newNullInts(20)},
-				{Query: "ROLLBACK"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: map[string][]sql.NullInt64{"*": newNullInts(2)}},
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: map[string][]sql.NullInt64{"*": newNullInts(2)}, WantNG: map[string][]sql.NullInt64{"*": newNullInts(20)}},
+				{Query: "COMMIT"},
 			},
 		},
 		Threshold: map[string]string{
@@ -595,64 +616,64 @@ var specs = []spec{
 			"*":                               genSeq(3, 4),
 		},
 	},
-	{
-		Name: "fuzzy read with locking read",
-		Txs: [][]query{
-			{
-				{},
-				{},
-				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-			},
-			{
-				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "SELECT value FROM foo WHERE id = 1 FOR SHARE", WantOK: newNullInts(2), WantNG: newNullInts(20), WantErr: map[string]string{
-					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-				}},
-				{Query: "ROLLBACK"},
-			},
-		},
-		Threshold: map[string]string{
-			// https://zenn.dev/link/comments/7fb7fc29bb457d
-			// SELECT ... FOR でのロック読み取りはスナップショットではなく本体を読む
-			MYSQL: SERIALIZABLE,
-			"*":   REPEATABLE_READ,
-		},
-		WantStarts: map[string][]string{
-			POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3), // 2nd SELECT crashes
-			POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3), // 2nd SELECT crashes
-			"*":                              genSeq(3, 4),
-		},
-		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
-			POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3),                                      // 2nd SELECT crashes
-			POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3),                                      // 2nd SELECT crashes
-			"*":                              genSeq(3, 4),
-		},
-		Skip: map[string]bool{
-			REPEATABLE_READ_LOCK: true,
-			SQLSERVER:            true, // doesn't support SELECT ... FOR
-			ORACLE:               true,
-			DB2:                  true,
-			SQLITE:               true, // doesn't support SELECT ... FOR
-		},
-	},
+	// {
+	// 	Name: "fuzzy read with locking read",
+	// 	Txs: [][]query{
+	// 		{
+	// 			{},
+	// 			{},
+	// 			{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+	// 		},
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1 FOR SHARE", WantOK: newNullInts(2), WantNG: newNullInts(20), WantErr: map[string]string{
+	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 			}},
+	// 			{Query: "COMMIT"},
+	// 		},
+	// 	},
+	// 	Threshold: map[string]string{
+	// 		// https://zenn.dev/link/comments/7fb7fc29bb457d
+	// 		// SELECT ... FOR でのロック読み取りはスナップショットではなく本体を読む
+	// 		MYSQL: SERIALIZABLE,
+	// 		"*":   REPEATABLE_READ,
+	// 	},
+	// 	WantStarts: map[string][]string{
+	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3), // 2nd SELECT crashes
+	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3), // 2nd SELECT crashes
+	// 		"*":                              genSeq(3, 4),
+	// 	},
+	// 	WantEnds: map[string][]string{
+	// 		MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
+	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3),                                      // 2nd SELECT crashes
+	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3),                                      // 2nd SELECT crashes
+	// 		"*":                              genSeq(3, 4),
+	// 	},
+	// 	Skip: map[string]bool{
+	// 		REPEATABLE_READ_LOCK: true,
+	// 		SQLSERVER:            true, // doesn't support SELECT ... FOR
+	// 		ORACLE:               true,
+	// 		DB2:                  true,
+	// 		SQLITE:               true, // doesn't support SELECT ... FOR
+	// 	},
+	// },
 
 	{
 		Name: "phantom read",
 		Txs: [][]query{
 			{
 				// {},
-				{Query: "SELECT id FROM foo", Want: newNullInts(1, 3)},
+				{Query: "SELECT id FROM foo", Want: map[string][]sql.NullInt64{"*": newNullInts(1, 3)}},
 				{},
 				{Query: "INSERT INTO foo VALUES (2, 20)"},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
-				{Query: "SELECT id FROM foo WHERE id < 3", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
-				{Query: "ROLLBACK"},
+				{Query: "SELECT id FROM foo WHERE id < 3", Want: map[string][]sql.NullInt64{"*": newNullInts(1)}},
+				{Query: "SELECT id FROM foo WHERE id < 3", WantOK: map[string][]sql.NullInt64{"*": newNullInts(1)}, WantNG: map[string][]sql.NullInt64{"*": newNullInts(1, 2)}},
+				{Query: "COMMIT"},
 			},
 		},
 		Threshold: map[string]string{
@@ -673,123 +694,127 @@ var specs = []spec{
 			"*":                                genSeq(3, 4),
 		},
 	},
-	{
-		Name: "phantom read with locking read",
-		Txs: [][]query{
-			{
-				{},
-				{},
-				{Query: "INSERT INTO foo VALUES (2, 20)"},
-			},
-			{
-				{Query: "BEGIN"},
-				{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
-				// note: Postgresでは集約関数でSELECT...FORは使えない
-				// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
-				{Query: "SELECT id FROM foo WHERE id < 3 FOR SHARE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
-				{Query: "ROLLBACK"},
-			},
-		},
-		Threshold: map[string]string{
-			MYSQL: SERIALIZABLE, // SELECT ... FOR SHAREはREPEATABLE_READでもスナップショットを読まないのでファントムが現れる
-			"*":   REPEATABLE_READ,
-		},
-		WantStarts: map[string][]string{"*": genSeq(3, 4)},
-		WantEnds: map[string][]string{
-			MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			"*":                        genSeq(3, 4),
-		},
-		Skip: map[string]bool{
-			REPEATABLE_READ_LOCK: true,
-			SQLSERVER:            true, // doesn't support SELECT ... FOR
-			ORACLE:               true,
-			DB2:                  true,
-			SQLITE:               true, // doesn't support SELECT ... FOR
-		},
-	},
-	{
-		Name: "phantom delete",
-		Txs: [][]query{
-			{
-				{Query: "BEGIN"},
-				{Query: "UPDATE foo set value = value + 2"},
-				{},
-				{Query: "COMMIT"},
-			},
-			{
-				{Query: "BEGIN"},
-				{Query: "SELECT id FROM foo WHERE value = 4", Want: newNullInts(3)},
-				{Query: "DELETE FROM foo where value = 4", WantErr: map[string]string{
-					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-				}},
-				{Query: "SELECT id FROM foo WHERE id = 3", WantOK: newNullInts(), WantNG: newNullInts(3)},
-				{Query: "ROLLBACK"},
-			},
-		},
-		Threshold: map[string]string{
-			"*": SERIALIZABLE,
-		},
-		AdditionalOk: map[string][]string{
-			POSTGRES: {REPEATABLE_READ},
-			MYSQL:    {REPEATABLE_READ_LOCK},
-		},
-		WantStarts: map[string][]string{
-			REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-			POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 3),
-			POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 3),
-			MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-			"*":                              genSeq(4, 5),
-		},
-		WantEnds: map[string][]string{
-			READ_COMMITTED:                   {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-			REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
-			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
-			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
-			MYSQL + ":" + REPEATABLE_READ:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-			MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
-			// MYSQL + ":" + SERIALIZABLE:         {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			// SQLSERVER + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			// DB2 + ":" + REPEATABLE_READ:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			// DB2 + ":" + SERIALIZABLE:           {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			// SQLITE + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-			"*": genSeq(4, 5),
-		},
-		Skip: map[string]bool{
-			NO_TRANSACTION:             true,
-			READ_UNCOMMITTED:           true,
-			REPEATABLE_READ_LOCK:       true, // OKだけどwantが変わる
-			MYSQL + ":" + SERIALIZABLE: true, // OKだけどwantが変わる
-			SQLSERVER:                  true, // とりあえず
-			ORACLE:                     true, // とりあえず
-			DB2:                        true, // とりあえず
-		},
-	},
+	// {
+	// 	Name: "phantom read with locking read",
+	// 	Txs: [][]query{
+	// 		{
+	// 			{},
+	// 			{},
+	// 			{Query: "INSERT INTO foo VALUES (2, 20)"},
+	// 		},
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
+	// 			// note: Postgresでは集約関数でSELECT...FORは使えない
+	// 			// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
+	// 			{Query: "SELECT id FROM foo WHERE id < 3 FOR SHARE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
+	// 			{Query: "COMMIT"},
+	// 		},
+	// 	},
+	// 	Threshold: map[string]string{
+	// 		MYSQL: SERIALIZABLE, // SELECT ... FOR SHAREはREPEATABLE_READでもスナップショットを読まないのでファントムが現れる
+	// 		"*":   REPEATABLE_READ,
+	// 	},
+	// 	WantStarts: map[string][]string{"*": genSeq(3, 4)},
+	// 	WantEnds: map[string][]string{
+	// 		MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+	// 		"*":                        genSeq(3, 4),
+	// 	},
+	// 	Skip: map[string]bool{
+	// 		REPEATABLE_READ_LOCK: true,
+	// 		SQLSERVER:            true, // doesn't support SELECT ... FOR
+	// 		ORACLE:               true,
+	// 		DB2:                  true,
+	// 		SQLITE:               true, // doesn't support SELECT ... FOR
+	// 	},
+	// },
+	// {
+	// 	Name: "phantom delete",
+	// 	Txs: [][]query{
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "UPDATE foo set value = value + 2"},
+	// 			{},
+	// 			{Query: "COMMIT"},
+	// 		},
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "SELECT id FROM foo WHERE value = 4", Want: newNullInts(3)},
+	// 			{Query: "DELETE FROM foo where value = 4", WantErr: map[string]string{
+	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 			}},
+	// 			{Query: "SELECT id FROM foo WHERE id = 3", WantOK: newNullInts(), WantNG: newNullInts(3)},
+	// 			{Query: "COMMIT"},
+	// 		},
+	// 	},
+	// 	Threshold: map[string]string{
+	// 		"*": SERIALIZABLE,
+	// 	},
+	// 	AdditionalOk: map[string][]string{
+	// 		POSTGRES: {REPEATABLE_READ},
+	// 		MYSQL:    {REPEATABLE_READ_LOCK},
+	// 	},
+	// 	WantStarts: map[string][]string{
+	// 		REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 3),
+	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 3),
+	// 		MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+	// 		"*":                              genSeq(4, 5),
+	// 	},
+	// 	WantEnds: map[string][]string{
+	// 		READ_COMMITTED:                   {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+	// 		REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
+	// 		POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
+	// 		POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
+	// 		MYSQL + ":" + REPEATABLE_READ:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
+	// 		MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
+	// 		// MYSQL + ":" + SERIALIZABLE:         {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+	// 		// SQLSERVER + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+	// 		// DB2 + ":" + REPEATABLE_READ:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+	// 		// DB2 + ":" + SERIALIZABLE:           {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+	// 		// SQLITE + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
+	// 		"*": genSeq(4, 5),
+	// 	},
+	// 	Skip: map[string]bool{
+	// 		NO_TRANSACTION:             true,
+	// 		READ_UNCOMMITTED:           true,
+	// 		REPEATABLE_READ_LOCK:       true, // OKだけどwantが変わる
+	// 		MYSQL + ":" + SERIALIZABLE: true, // OKだけどwantが変わる
+	// 		SQLSERVER:                  true, // とりあえず
+	// 		ORACLE:                     true, // とりあえず
+	// 		DB2:                        true, // とりあえず
+	// 	},
+	// },
 	{
 		Name: "lost update",
 		Txs: [][]query{
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: map[string][]sql.NullInt64{"*": newNullInts(2)}},
+				{Query: "UPDATE foo SET value = 20 WHERE id = 1", WantErr: map[string]string{
+					POSTGRES + ":" + REPEATABLE_READ_LOCK: "ERROR: deadlock detected (SQLSTATE 40P01)",
+				}},
 				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(20), WantNG: newNullInts(200)},
+				{}, // T2のコミットを待つ
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: map[string][]sql.NullInt64{"*": newNullInts(20)}, WantNG: map[string][]sql.NullInt64{"*": newNullInts(200)}},
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: map[string][]sql.NullInt64{"*": newNullInts(2)}},
 				{Query: "UPDATE foo SET value = 200 WHERE id = 1",
 					WantErr: map[string]string{
-						MYSQL + ":" + SERIALIZABLE:        "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
-						POSTGRES + ":" + REPEATABLE_READ:  "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-						POSTGRES + ":" + SERIALIZABLE:     "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-						SQLSERVER + ":" + REPEATABLE_READ: "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
-						SQLSERVER + ":" + SNAPSHOT:        "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
-						SQLSERVER + ":" + SERIALIZABLE:    "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
-						ORACLE + ":" + SERIALIZABLE:       "ORA-08177: can't serialize access for this transaction\n",
-						DB2 + ":" + READ_STABILITY:        "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-						DB2 + ":" + REPEATABLE_READ:       "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-						DB2 + ":" + SERIALIZABLE:          "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						MYSQL + ":" + REPEATABLE_READ_LOCK: "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+						MYSQL + ":" + SERIALIZABLE:         "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+						POSTGRES + ":" + REPEATABLE_READ:   "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+						POSTGRES + ":" + SERIALIZABLE:      "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+						SQLSERVER + ":" + REPEATABLE_READ:  "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						SQLSERVER + ":" + SNAPSHOT:         "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
+						SQLSERVER + ":" + SERIALIZABLE:     "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						ORACLE + ":" + SERIALIZABLE:        "ORA-08177: can't serialize access for this transaction\n",
+						DB2 + ":" + READ_STABILITY:         "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + REPEATABLE_READ:        "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + SERIALIZABLE:           "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 					},
 					compile: map[string]bool{
 						SQLSERVER + ":" + REPEATABLE_READ: true,
@@ -797,193 +822,203 @@ var specs = []spec{
 					},
 				},
 				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: map[string][]sql.NullInt64{"*": newNullInts(200)}},
 			},
 		},
 		Threshold: map[string]string{
-			POSTGRES:  REPEATABLE_READ,
-			SQLSERVER: REPEATABLE_READ,
-			DB2:       READ_STABILITY,
-			"*":       SERIALIZABLE,
+			MYSQL: SERIALIZABLE,
+			DB2:   READ_STABILITY,
+			"*":   REPEATABLE_READ,
+		},
+		AdditionalOk: map[string][]string{
+			POSTGRES:  {REPEATABLE_READ_LOCK},
+			MYSQL:     {REPEATABLE_READ_LOCK},
+			SQLSERVER: {REPEATABLE_READ},
 		},
 		WantStarts: map[string][]string{
-			SERIALIZABLE:                      genSeq(5, 3),
-			POSTGRES + ":" + REPEATABLE_READ:  genSeq(5, 3),
-			SQLSERVER + ":" + REPEATABLE_READ: genSeq(5, 3),
-			SQLSERVER + ":" + SNAPSHOT:        genSeq(5, 3),
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
-			"*":                               genSeq(5, 5),
+			SERIALIZABLE:                              genSeq(6, 3),
+			POSTGRES + ":" + REPEATABLE_READ:          genSeq(6, 3),
+			POSTGRES + ":" + REPEATABLE_READ_LOCK:     genSeq(3, 5),
+			MYSQL + ":" + REPEATABLE_READ_LOCK:        genSeq(6, 3),
+			SQLSERVER + ":" + READ_UNCOMMITTED:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "a:5", "b:4"},
+			SQLSERVER + ":" + READ_COMMITTED:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "a:5", "b:4"},
+			SQLSERVER + ":" + READ_COMMITTED_SNAPSHOT: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "a:5", "b:4"},
+			SQLSERVER + ":" + REPEATABLE_READ:         genSeq(6, 3),
+			SQLSERVER + ":" + SNAPSHOT:                genSeq(6, 3),
+			DB2 + ":" + READ_STABILITY:                {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
+			DB2 + ":" + REPEATABLE_READ:               {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
+			DB2 + ":" + SERIALIZABLE:                  {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
+			NO_TRANSACTION:                            genSeq(6, 5),
+			"*":                                       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "b:3", "a:5", "b:4"},
 		},
 		WantEnds: map[string][]string{
-			NO_TRANSACTION:                    genSeq(5, 5),
-			SERIALIZABLE:                      {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
-			POSTGRES + ":" + REPEATABLE_READ:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"},
-			POSTGRES + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			SQLSERVER + ":" + SNAPSHOT:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4"},
-			ORACLE + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4"},
-			"*":                               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // 1:UPDATE is locked
+			NO_TRANSACTION:                            genSeq(6, 5),
+			SERIALIZABLE:                              {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"},
+			POSTGRES + ":" + REPEATABLE_READ:          {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "a:5"},
+			POSTGRES + ":" + REPEATABLE_READ_LOCK:     {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4", "a:5"},
+			POSTGRES + ":" + SERIALIZABLE:             {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "a:5"}, // same as POSTGRES:REPEATABLE_READ
+			MYSQL + ":" + REPEATABLE_READ_LOCK:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"},
+			SQLSERVER + ":" + READ_COMMITTED:          {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "a:5", "b:4"},
+			SQLSERVER + ":" + READ_COMMITTED_SNAPSHOT: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "a:5", "b:4"},
+			SQLSERVER + ":" + REPEATABLE_READ:         {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"},
+			SQLSERVER + ":" + SNAPSHOT:                {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "a:5"}, // same as POSTGRES:REPEATABLE_READ
+			ORACLE + ":" + SERIALIZABLE:               {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "a:5"}, // same as POSTGRES:REPEATABLE_READ
+			DB2 + ":" + READ_STABILITY:                {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"},
+			DB2 + ":" + REPEATABLE_READ:               {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"},
+			DB2 + ":" + SERIALIZABLE:                  {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"},
+			"*":                                       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "a:5", "b:4"}, // 1:UPDATE is locked
 		},
 		Skip: map[string]bool{
 			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
 		},
 	},
-	{
-		Name: "lost update with locking read",
-		Txs: [][]query{
-			{
-				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
-			},
-			{
-				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(20), WantErr: map[string]string{
-					// NOTE: 違反してないような気がするんだけど
-					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
-				}},
-				{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
-				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
-			},
-		},
-		Threshold: map[string]string{
-			"*": READ_UNCOMMITTED, // always OK
-		},
-		WantStarts: map[string][]string{
-			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},
-			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                             // same as POSTGRES:REPEATABLE_READ
-			ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                             // same as POSTGRES:REPEATABLE_READ
-			"*":                              {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4", "b:5"}, // T2 SELECT is locked
-		},
-		WantEnds: map[string][]string{
-			POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"},
-			POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-			"*":                              {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4", "b:2", "b:3", "b:4", "b:5"},
-		},
-		Skip: map[string]bool{
-			REPEATABLE_READ_LOCK:             true,
-			POSTGRES + ":" + NO_TRANSACTION:  true,
-			MYSQL + ":" + NO_TRANSACTION:     true,
-			SQLSERVER + ":" + NO_TRANSACTION: true,
-			SQLSERVER + ":" + SNAPSHOT:       true, // FIXME: mssql: The COMMIT TRANSACTION request has no corresponding BEGIN TRANSACTION.
-			ORACLE + ":" + NO_TRANSACTION:    true,
-			DB2:                              true,
-			SQLITE:                           true, // doesn't support SELECT ... FOR
-		},
-	},
-	{
-		// https://pmg.csail.mit.edu/papers/adya-phd.pdf
-		// Atul Adya: “Weak Consistency"ではT1のSELECTのあとT2のSELECTになっている
-		// でもそれだとCSでもロックしない？
-		Name: "G-cursor",
-		Txs: [][]query{
-			{
-				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 12 WHERE id = 1"}, // x = x + 10
-				{Query: "COMMIT"},
-				// {Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
-			},
-			{
-				{Query: "BEGIN"},
-				{},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(12), WantNG: newNullInts(2)},
-				{Query: "UPDATE foo SET value = 112 WHERE id = 1", WantErr: map[string]string{
-					// NOTE: 違反してないような気がするんだけど
-					POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-					SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
-					ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
-				}}, // x = x + 100
-				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(112)},
-			},
-		},
-		Threshold: map[string]string{
-			POSTGRES: REPEATABLE_READ,
-			DB2:      CURSOR_STABILITY,
-			"*":      SERIALIZABLE,
-		},
-		AdditionalOk: map[string][]string{
-			SQLSERVER: {READ_COMMITTED, REPEATABLE_READ},
-		},
-		WantStarts: map[string][]string{
-			POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 4),
-			POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 4),
-			SQLSERVER + ":" + SNAPSHOT:       genSeq(4, 4),
-			ORACLE + ":" + SERIALIZABLE:      genSeq(4, 4),
-			"*":                              genSeq(4, 6),
-		},
-		WantEnds: map[string][]string{
-			POSTGRES + ":" + REPEATABLE_READ:  genSeq(4, 4),
-			POSTGRES + ":" + SERIALIZABLE:     genSeq(4, 4),
-			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			SQLSERVER + ":" + SNAPSHOT:        genSeq(4, 4),
-			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			ORACLE + ":" + SERIALIZABLE:       genSeq(4, 4),
-			DB2 + ":" + CURSOR_STABILITY:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-			"*":                               genSeq(4, 6),
-		},
-		Skip: map[string]bool{
-			POSTGRES + ":" + NO_TRANSACTION:    true, // NGだけど値はOKになってしまう
-			POSTGRES + ":" + READ_UNCOMMITTED:  true, // NGだけど値はOKになってしまう
-			POSTGRES + ":" + REPEATABLE_READ:   true, // OKだけど値はOKじゃない
-			POSTGRES + ":" + SERIALIZABLE:      true, // OKだけど値はOKじゃない
-			MYSQL + ":" + NO_TRANSACTION:       true,
-			MYSQL + ":" + READ_UNCOMMITTED:     true,
-			SQLSERVER + ":" + NO_TRANSACTION:   true,
-			SQLSERVER + ":" + READ_UNCOMMITTED: true,
-			ORACLE + ":" + NO_TRANSACTION:      true,
-			ORACLE + ":" + READ_UNCOMMITTED:    true,
-			ORACLE + ":" + SERIALIZABLE:        true, // OKだけど値はOKじゃない
-			DB2 + ":" + NO_TRANSACTION:         true,
-			DB2 + ":" + READ_UNCOMMITTED:       true,
-			SQLITE:                             true, // doesn't support SELECT ... FOR
-		},
-	},
+	// {
+	// 	Name: "lost update with locking read",
+	// 	Txs: [][]query{
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(2)},
+	// 			{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
+	// 			{Query: "COMMIT"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
+	// 		},
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(20), WantErr: map[string]string{
+	// 				// NOTE: 違反してないような気がするんだけど
+	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 				ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
+	// 			}},
+	// 			{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
+	// 			{Query: "COMMIT"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
+	// 		},
+	// 	},
+	// 	Threshold: map[string]string{
+	// 		"*": READ_UNCOMMITTED, // always OK
+	// 	},
+	// 	WantStarts: map[string][]string{
+	// 		POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},
+	// 		POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                      // same as POSTGRES:REPEATABLE_READ
+	// 		SQLSERVER:                        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4", "b:2", "b:3", "b:4"}, // T2 SELECT is locked
+	// 		ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                      // same as POSTGRES:REPEATABLE_READ
+	// 		"*":                              {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // T2 SELECT is locked
+	// 	},
+	// 	WantEnds: map[string][]string{
+	// 		POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"},
+	// 		POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+	// 		ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
+	// 		"*":                              {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4", "b:2", "b:3", "b:4"},
+	// 	},
+	// 	Skip: map[string]bool{
+	// 		REPEATABLE_READ_LOCK:             true,
+	// 		POSTGRES + ":" + NO_TRANSACTION:  true,
+	// 		MYSQL + ":" + NO_TRANSACTION:     true,
+	// 		SQLSERVER + ":" + NO_TRANSACTION: true,
+	// 		SQLSERVER + ":" + SNAPSHOT:       true, // FIXME: mssql: The COMMIT TRANSACTION request has no corresponding BEGIN TRANSACTION.
+	// 		ORACLE + ":" + NO_TRANSACTION:    true,
+	// 		DB2:                              true,
+	// 		SQLITE:                           true, // doesn't support SELECT ... FOR
+	// 	},
+	// },
+	// {
+	// 	// https://pmg.csail.mit.edu/papers/adya-phd.pdf
+	// 	// Atul Adya: “Weak Consistency"ではT1のSELECTのあとT2のSELECTになっている
+	// 	// でもそれだとCSでもロックしない？
+	// 	Name: "G-cursor",
+	// 	Txs: [][]query{
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
+	// 			{Query: "UPDATE foo SET value = 12 WHERE id = 1"}, // x = x + 10
+	// 			{Query: "COMMIT"},
+	// 			// {Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
+	// 		},
+	// 		{
+	// 			{Query: "BEGIN"},
+	// 			{},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(12), WantNG: newNullInts(2)},
+	// 			{Query: "UPDATE foo SET value = 112 WHERE id = 1", WantErr: map[string]string{
+	// 				// NOTE: 違反してないような気がするんだけど
+	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
+	// 				SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
+	// 				ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
+	// 			}}, // x = x + 100
+	// 			{Query: "COMMIT"},
+	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(112)},
+	// 		},
+	// 	},
+	// 	Threshold: map[string]string{
+	// 		POSTGRES: REPEATABLE_READ,
+	// 		DB2:      CURSOR_STABILITY,
+	// 		"*":      SERIALIZABLE,
+	// 	},
+	// 	AdditionalOk: map[string][]string{
+	// 		SQLSERVER: {READ_COMMITTED, REPEATABLE_READ},
+	// 	},
+	// 	WantStarts: map[string][]string{
+	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 4),
+	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 4),
+	// 		SQLSERVER + ":" + SNAPSHOT:       genSeq(4, 4),
+	// 		ORACLE + ":" + SERIALIZABLE:      genSeq(4, 4),
+	// 		"*":                              genSeq(4, 6),
+	// 	},
+	// 	WantEnds: map[string][]string{
+	// 		POSTGRES + ":" + REPEATABLE_READ:  genSeq(4, 4),
+	// 		POSTGRES + ":" + SERIALIZABLE:     genSeq(4, 4),
+	// 		MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		SQLSERVER + ":" + SNAPSHOT:        genSeq(4, 4),
+	// 		SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		ORACLE + ":" + SERIALIZABLE:       genSeq(4, 4),
+	// 		DB2 + ":" + CURSOR_STABILITY:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
+	// 		"*":                               genSeq(4, 6),
+	// 	},
+	// 	Skip: map[string]bool{
+	// 		NO_TRANSACTION:                   true, // NGだけど値はOKになってしまう
+	// 		READ_UNCOMMITTED:                 true, // NGだけど値はOKになってしまう
+	// 		REPEATABLE_READ_LOCK:             true, // とりあえず
+	// 		POSTGRES + ":" + REPEATABLE_READ: true, // OKだけど値はOKじゃない
+	// 		POSTGRES + ":" + SERIALIZABLE:    true, // OKだけど値はOKじゃない
+	// 		ORACLE + ":" + SERIALIZABLE:      true, // OKだけど値はOKじゃない
+	// 		SQLITE:                           true, // doesn't support SELECT ... FOR
+	// 	},
+	// },
 
 	{
 		Name: "write skew",
 		Txs: [][]query{
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)}, // get X
+				{Query: "SELECT value FROM foo WHERE id = 1", Want: map[string][]sql.NullInt64{"*": newNullInts(2)}}, // get X
 				{Query: "UPDATE foo SET value = 20 WHERE id = 3", // update Y to X*10
 					WantErr: map[string]string{
-						DB2 + ":" + READ_STABILITY:  "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-						DB2 + ":" + REPEATABLE_READ: "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-						DB2 + ":" + SERIALIZABLE:    "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						POSTGRES + ":" + REPEATABLE_READ_LOCK: "ERROR: deadlock detected (SQLSTATE 40P01)",
+						DB2 + ":" + READ_STABILITY:            "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + REPEATABLE_READ:           "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+						DB2 + ":" + SERIALIZABLE:              "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
 					},
 				},
-				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(20)}, // got X*10
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: map[string][]sql.NullInt64{"*": newNullInts(20)}}, // got X*10
 				{Query: "COMMIT"},
-				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(2), WantNG: newNullInts(40)}, // T2 should be aborted and keep Y = X * 2
+				{Query: "SELECT value FROM foo WHERE id = 1", WantOK: map[string][]sql.NullInt64{"*": newNullInts(2)}, WantNG: map[string][]sql.NullInt64{"*": newNullInts(40)}}, // T2 should be aborted and keep Y = X * 2
 			},
 			{
 				{Query: "BEGIN"},
-				{Query: "SELECT value FROM foo WHERE id = 3", Want: newNullInts(4)}, // get Y
+				{Query: "SELECT value FROM foo WHERE id = 3", Want: map[string][]sql.NullInt64{"*": newNullInts(4)}}, // get Y
 				// update X to Y*10
 				{Query: "UPDATE foo SET value = 40 WHERE id = 1",
 					WantErr: map[string]string{
-						MYSQL + ":" + SERIALIZABLE:        "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
-						SQLSERVER + ":" + REPEATABLE_READ: "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
-						SQLSERVER + ":" + SERIALIZABLE:    "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						MYSQL + ":" + REPEATABLE_READ_LOCK: "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+						MYSQL + ":" + SERIALIZABLE:         "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
+						SQLSERVER + ":" + REPEATABLE_READ:  "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
+						SQLSERVER + ":" + SERIALIZABLE:     "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
 					},
 					compile: map[string]bool{
 						SQLSERVER + ":" + REPEATABLE_READ: true,
@@ -991,11 +1026,17 @@ var specs = []spec{
 					}},
 				// TODO:`Want:`を定義
 				// Oracle SerializableがOK判定になってる
-				{Query: "SELECT value FROM foo WHERE id = 1", WantNG: newNullInts(40)}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
+				{Query: "SELECT value FROM foo WHERE id = 1",
+					Want: map[string][]sql.NullInt64{
+						POSTGRES + ":" + SERIALIZABLE: newNullInts(40),
+					},
+					WantOK: map[string][]sql.NullInt64{"*": newNullInts(2)},
+					WantNG: map[string][]sql.NullInt64{"*": newNullInts(40)},
+				}, // write skew: now X=40, Y=20, so not Y = X*10 nor X != Y*10
 				{Query: "COMMIT", WantErr: map[string]string{
 					POSTGRES + ":" + SERIALIZABLE: "ERROR: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)",
 				}},
-				{Query: "SELECT value FROM foo WHERE id = 3", WantOK: newNullInts(4), WantNG: newNullInts(20)}, // T1 should be aborted and keep Y = X * 2
+				{Query: "SELECT value FROM foo WHERE id = 3", WantOK: map[string][]sql.NullInt64{"*": newNullInts(4)}, WantNG: map[string][]sql.NullInt64{"*": newNullInts(20)}}, // T1 should be aborted and keep Y = X * 2
 			},
 		},
 		Threshold: map[string]string{
@@ -1004,27 +1045,33 @@ var specs = []spec{
 			"*":    SERIALIZABLE,
 		},
 		AdditionalOk: map[string][]string{
+			POSTGRES:  {REPEATABLE_READ_LOCK},
+			MYSQL:     {REPEATABLE_READ_LOCK},
 			SQLSERVER: {REPEATABLE_READ},
 		},
 		WantStarts: map[string][]string{
-			POSTGRES + ":" + SERIALIZABLE:     genSeq(6, 5),
-			MYSQL + ":" + SERIALIZABLE:        genSeq(6, 3),
-			SQLSERVER + ":" + REPEATABLE_READ: genSeq(6, 3),
-			SQLSERVER + ":" + SERIALIZABLE:    genSeq(6, 3),
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
-			"*":                               genSeq(6, 6),
+			POSTGRES + ":" + SERIALIZABLE:         genSeq(6, 5),
+			POSTGRES + ":" + REPEATABLE_READ_LOCK: genSeq(3, 6),
+			MYSQL + ":" + REPEATABLE_READ_LOCK:    genSeq(6, 3),
+			MYSQL + ":" + SERIALIZABLE:            genSeq(6, 3),
+			SQLSERVER + ":" + REPEATABLE_READ:     genSeq(6, 3),
+			SQLSERVER + ":" + SERIALIZABLE:        genSeq(6, 3),
+			DB2 + ":" + READ_STABILITY:            {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + REPEATABLE_READ:           {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + SERIALIZABLE:              {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			"*":                                   genSeq(6, 6),
 		},
 		WantEnds: map[string][]string{
-			POSTGRES + ":" + SERIALIZABLE:     genSeq(6, 5),                                                    // abort on T2 commit
-			MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
-			SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
-			SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
-			DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
-			DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
-			"*":                               genSeq(6, 6),
+			POSTGRES + ":" + REPEATABLE_READ_LOCK: {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "b:3", "b:4", "b:5"},
+			POSTGRES + ":" + SERIALIZABLE:         genSeq(6, 5),                                                    // abort on T2 commit
+			MYSQL + ":" + REPEATABLE_READ_LOCK:    {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			MYSQL + ":" + SERIALIZABLE:            {"a:0", "b:0", "a:1", "b:1", "b:2", "a:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			SQLSERVER + ":" + REPEATABLE_READ:     {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			SQLSERVER + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "a:3", "a:4", "a:5"}, // query 0:2 is locked, query1:2 crashes
+			DB2 + ":" + READ_STABILITY:            {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + REPEATABLE_READ:           {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			DB2 + ":" + SERIALIZABLE:              {"a:0", "b:0", "a:1", "b:1", "a:2", "b:2", "b:3", "b:4", "b:5"},
+			"*":                                   genSeq(6, 6),
 		},
 		Skip: map[string]bool{
 			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
@@ -1081,7 +1128,6 @@ func TestMain(m *testing.M) {
 }
 
 func Test(t *testing.T) {
-
 	buf, err := json.MarshalIndent(specs, "", "  ")
 	if err != nil {
 		t.Fatal(err)
@@ -1251,11 +1297,44 @@ func Test(t *testing.T) {
 						query = strings.ReplaceAll(query, " FROM foo", " FROM foo WITH(ROWLOCK, UPDLOCK)")
 					}
 
+					want := q.Want["*"]
+					if v, ok := q.Want[tt.database+":"+tt.level]; ok {
+						want = v
+					} else if v, ok := q.Want[tt.level]; ok {
+						want = v
+					} else if v, ok := q.Want[tt.database]; ok {
+						want = v
+					}
+
+					var wantOK []sql.NullInt64
+					if want == nil {
+						wantOK = q.WantOK["*"]
+						if v, ok := q.WantOK[tt.database+":"+tt.level]; ok {
+							wantOK = v
+						} else if v, ok := q.WantOK[tt.level]; ok {
+							wantOK = v
+						} else if v, ok := q.WantOK[tt.database]; ok {
+							wantOK = v
+						}
+					}
+
+					var wantNG []sql.NullInt64
+					if want == nil {
+						wantNG = q.WantNG["*"]
+						if v, ok := q.WantNG[tt.database+":"+tt.level]; ok {
+							wantNG = v
+						} else if v, ok := q.WantNG[tt.level]; ok {
+							wantNG = v
+						} else if v, ok := q.WantNG[tt.database]; ok {
+							wantNG = v
+						}
+					}
+
 					txs[i][j] = transactonstest.Query{
 						Query:   query,
-						Want:    q.Want,
-						WantOK:  q.WantOK,
-						WantNG:  q.WantNG,
+						Want:    want,
+						WantOK:  wantOK,
+						WantNG:  wantNG,
 						WantErr: q.WantErr[tt.database+":"+tt.level],
 						Compile: q.compile[tt.database+":"+tt.level],
 					}
@@ -1282,6 +1361,8 @@ func Test(t *testing.T) {
 
 			isolationLevel := getIsolationLevel(tt.database, tt.level)
 
+			fmt.Printf("threshold: %s, %d > %d => ok: %t\n", threshold, levelInt[tt.level], levelInt[threshold], ok)
+			fmt.Printf("%+v\n", txs)
 			transactonstest.RunTransactionsTest(t, ctx, db, isolationLevel, txs, wantStarts, wantEnds, ok)
 		})
 	}

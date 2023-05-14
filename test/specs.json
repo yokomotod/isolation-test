@@ -1,118 +1,5 @@
 [
   {
-    "name": "dirty write",
-    "txs": [
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": null,
-          "wantOk": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 200,
-              "Valid": true
-            }
-          ],
-          "wantErr": null
-        },
-        {
-          "query": "ROLLBACK",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ],
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo SET value = 200 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "ROLLBACK",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ]
-    ],
-    "threshold": {
-      "*": "READ UNCOMMITTED"
-    },
-    "additionalOk": null,
-    "wantStarts": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2"
-      ],
-      "NO TRANSACTION": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3"
-      ]
-    },
-    "wantEnds": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "b:2"
-      ],
-      "NO TRANSACTION": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3"
-      ]
-    },
-    "skip": null
-  },
-  {
     "name": "dirty read",
     "txs": [
       [
@@ -131,7 +18,7 @@
           "wantErr": null
         },
         {
-          "query": "ROLLBACK",
+          "query": "COMMIT",
           "want": null,
           "wantOk": null,
           "wantNg": null,
@@ -148,23 +35,78 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": null,
-          "wantOk": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "NO TRANSACTION": null,
+            "READ UNCOMMITTED": null,
+            "db2:CURSOR STABILITY": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "db2:REPEATABLE READ": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "db2:RS": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "db2:SERIALIZABLE": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "mysql:SERIALIZABLE": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "sqlserver:READ COMMITTED": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "sqlserver:REPEATABLE READ": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ],
+            "sqlserver:SERIALIZABLE": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ]
+          },
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         },
         {
-          "query": "ROLLBACK",
+          "query": "COMMIT",
           "want": null,
           "wantOk": null,
           "wantNg": null,
@@ -315,12 +257,14 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -328,22 +272,26 @@
         {
           "query": "SELECT value FROM foo WHERE id = 1",
           "want": null,
-          "wantOk": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         },
         {
-          "query": "ROLLBACK",
+          "query": "COMMIT",
           "want": null,
           "wantOk": null,
           "wantNg": null,
@@ -453,172 +401,23 @@
     "skip": null
   },
   {
-    "name": "fuzzy read with locking read",
-    "txs": [
-      [
-        {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ],
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1 FOR SHARE",
-          "want": null,
-          "wantOk": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
-          "wantErr": {
-            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
-          }
-        },
-        {
-          "query": "ROLLBACK",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ]
-    ],
-    "threshold": {
-      "*": "REPEATABLE READ",
-      "mysql": "SERIALIZABLE"
-    },
-    "additionalOk": null,
-    "wantStarts": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "b:3"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2"
-      ]
-    },
-    "wantEnds": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "b:3"
-      ],
-      "mysql:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "b:3",
-        "a:2"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2"
-      ]
-    },
-    "skip": {
-      "REPEATABLE READ LOCK": true,
-      "db2": true,
-      "oracle": true,
-      "sqlite": true,
-      "sqlserver": true
-    }
-  },
-  {
     "name": "phantom read",
     "txs": [
       [
         {
           "query": "SELECT id FROM foo",
-          "want": [
-            {
-              "Int64": 1,
-              "Valid": true
-            },
-            {
-              "Int64": 3,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 1,
+                "Valid": true
+              },
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -648,12 +447,14 @@
         },
         {
           "query": "SELECT id FROM foo WHERE id \u003c 3",
-          "want": [
-            {
-              "Int64": 1,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 1,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -661,26 +462,30 @@
         {
           "query": "SELECT id FROM foo WHERE id \u003c 3",
           "want": null,
-          "wantOk": [
-            {
-              "Int64": 1,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 1,
-              "Valid": true
-            },
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 1,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 1,
+                "Valid": true
+              },
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         },
         {
-          "query": "ROLLBACK",
+          "query": "COMMIT",
           "want": null,
           "wantOk": null,
           "wantNg": null,
@@ -776,359 +581,6 @@
     "skip": null
   },
   {
-    "name": "phantom read with locking read",
-    "txs": [
-      [
-        {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "INSERT INTO foo VALUES (2, 20)",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ],
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT id FROM foo WHERE id \u003c 3",
-          "want": [
-            {
-              "Int64": 1,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT id FROM foo WHERE id \u003c 3 FOR SHARE",
-          "want": null,
-          "wantOk": [
-            {
-              "Int64": 1,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 1,
-              "Valid": true
-            },
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantErr": null
-        },
-        {
-          "query": "ROLLBACK",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ]
-    ],
-    "threshold": {
-      "*": "REPEATABLE READ",
-      "mysql": "SERIALIZABLE"
-    },
-    "additionalOk": null,
-    "wantStarts": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "b:3"
-      ]
-    },
-    "wantEnds": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "b:3"
-      ],
-      "mysql:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "b:3",
-        "a:2"
-      ]
-    },
-    "skip": {
-      "REPEATABLE READ LOCK": true,
-      "db2": true,
-      "oracle": true,
-      "sqlite": true,
-      "sqlserver": true
-    }
-  },
-  {
-    "name": "phantom delete",
-    "txs": [
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo set value = value + 2",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "COMMIT",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ],
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT id FROM foo WHERE value = 4",
-          "want": [
-            {
-              "Int64": 3,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "DELETE FROM foo where value = 4",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": {
-            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
-          }
-        },
-        {
-          "query": "SELECT id FROM foo WHERE id = 3",
-          "want": null,
-          "wantOk": [],
-          "wantNg": [
-            {
-              "Int64": 3,
-              "Valid": true
-            }
-          ],
-          "wantErr": null
-        },
-        {
-          "query": "ROLLBACK",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ]
-    ],
-    "threshold": {
-      "*": "SERIALIZABLE"
-    },
-    "additionalOk": {
-      "mysql": [
-        "REPEATABLE READ LOCK"
-      ],
-      "postgres": [
-        "REPEATABLE READ"
-      ]
-    },
-    "wantStarts": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "b:3",
-        "b:4"
-      ],
-      "REPEATABLE READ LOCK": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "b:3",
-        "b:4"
-      ],
-      "mysql:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "b:3",
-        "b:4"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3"
-      ]
-    },
-    "wantEnds": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "b:3",
-        "b:4"
-      ],
-      "READ COMMITTED": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "b:3",
-        "b:4"
-      ],
-      "REPEATABLE READ LOCK": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "b:2",
-        "b:3",
-        "b:4"
-      ],
-      "mysql:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "b:3",
-        "b:4"
-      ],
-      "mysql:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "b:2",
-        "b:3",
-        "b:4"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2"
-      ]
-    },
-    "skip": {
-      "NO TRANSACTION": true,
-      "READ UNCOMMITTED": true,
-      "REPEATABLE READ LOCK": true,
-      "db2": true,
-      "mysql:SERIALIZABLE": true,
-      "oracle": true,
-      "sqlserver": true
-    }
-  },
-  {
     "name": "lost update",
     "txs": [
       [
@@ -1141,12 +593,14 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -1156,7 +610,9 @@
           "want": null,
           "wantOk": null,
           "wantNg": null,
-          "wantErr": null
+          "wantErr": {
+            "postgres:REPEATABLE READ LOCK": "ERROR: deadlock detected (SQLSTATE 40P01)"
+          }
         },
         {
           "query": "COMMIT",
@@ -1166,20 +622,31 @@
           "wantErr": null
         },
         {
+          "query": "",
+          "want": null,
+          "wantOk": null,
+          "wantNg": null,
+          "wantErr": null
+        },
+        {
           "query": "SELECT value FROM foo WHERE id = 1",
           "want": null,
-          "wantOk": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 200,
-              "Valid": true
-            }
-          ],
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 200,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         }
       ],
@@ -1193,12 +660,14 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -1212,6 +681,7 @@
             "db2:REPEATABLE READ": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
             "db2:RS": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
             "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+            "mysql:REPEATABLE READ LOCK": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "oracle:SERIALIZABLE": "ORA-08177: can't serialize access for this transaction\n",
             "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
@@ -1230,12 +700,14 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 200,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 200,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -1243,528 +715,18 @@
       ]
     ],
     "threshold": {
-      "*": "SERIALIZABLE",
+      "*": "REPEATABLE READ",
       "db2": "RS",
-      "postgres": "REPEATABLE READ",
-      "sqlserver": "REPEATABLE READ"
-    },
-    "additionalOk": null,
-    "wantStarts": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "b:3",
-        "a:4",
-        "b:4"
-      ],
-      "SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "db2:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "db2:RS": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "db2:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "sqlserver:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "sqlserver:SNAPSHOT": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ]
-    },
-    "wantEnds": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "a:4",
-        "b:3",
-        "b:4"
-      ],
-      "NO TRANSACTION": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "b:3",
-        "a:4",
-        "b:4"
-      ],
-      "SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "a:2",
-        "a:3",
-        "a:4"
-      ],
-      "db2:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "a:2",
-        "a:3",
-        "a:4"
-      ],
-      "db2:RS": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "a:2",
-        "a:3",
-        "a:4"
-      ],
-      "db2:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "b:2",
-        "a:2",
-        "a:3",
-        "a:4"
-      ],
-      "oracle:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "a:4"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "a:4"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "a:4"
-      ],
-      "sqlserver:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "b:2",
-        "a:3",
-        "a:4"
-      ],
-      "sqlserver:SNAPSHOT": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "a:4"
-      ]
-    },
-    "skip": {
-      "sqlite:SERIALIZABLE": true
-    }
-  },
-  {
-    "name": "lost update with locking read",
-    "txs": [
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1 FOR UPDATE",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo SET value = 20 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "COMMIT",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ],
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1 FOR UPDATE",
-          "want": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": {
-            "oracle:SERIALIZABLE": "ORA-08177: can't serialize access for this transaction\n",
-            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)"
-          }
-        },
-        {
-          "query": "UPDATE foo SET value = 200 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "COMMIT",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 200,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ]
-    ],
-    "threshold": {
-      "*": "READ UNCOMMITTED"
-    },
-    "additionalOk": null,
-    "wantStarts": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "b:2",
-        "a:4",
-        "b:3",
-        "b:4",
-        "b:5"
-      ],
-      "oracle:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "a:4"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "a:4"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
-        "a:3",
-        "a:4"
-      ]
-    },
-    "wantEnds": {
-      "*": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "a:4",
-        "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
-      ],
-      "oracle:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "a:4"
-      ],
-      "postgres:REPEATABLE READ": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "a:4"
-      ],
-      "postgres:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "a:2",
-        "a:3",
-        "b:1",
-        "a:4"
-      ]
-    },
-    "skip": {
-      "REPEATABLE READ LOCK": true,
-      "db2": true,
-      "mysql:NO TRANSACTION": true,
-      "oracle:NO TRANSACTION": true,
-      "postgres:NO TRANSACTION": true,
-      "sqlite": true,
-      "sqlserver:NO TRANSACTION": true,
-      "sqlserver:SNAPSHOT": true
-    }
-  },
-  {
-    "name": "G-cursor",
-    "txs": [
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo SET value = 12 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "COMMIT",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ],
-      [
-        {
-          "query": "BEGIN",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": null,
-          "wantOk": [
-            {
-              "Int64": 12,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantErr": null
-        },
-        {
-          "query": "UPDATE foo SET value = 112 WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": {
-            "oracle:SERIALIZABLE": "ORA-08177: can't serialize access for this transaction\n",
-            "postgres:REPEATABLE READ": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-            "postgres:SERIALIZABLE": "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-            "sqlserver:SNAPSHOT": "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement."
-          }
-        },
-        {
-          "query": "COMMIT",
-          "want": null,
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        },
-        {
-          "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 112,
-              "Valid": true
-            }
-          ],
-          "wantOk": null,
-          "wantNg": null,
-          "wantErr": null
-        }
-      ]
-    ],
-    "threshold": {
-      "*": "SERIALIZABLE",
-      "db2": "CURSOR STABILITY",
-      "postgres": "REPEATABLE READ"
+      "mysql": "SERIALIZABLE"
     },
     "additionalOk": {
+      "mysql": [
+        "REPEATABLE READ LOCK"
+      ],
+      "postgres": [
+        "REPEATABLE READ LOCK"
+      ],
       "sqlserver": [
-        "READ COMMITTED",
         "REPEATABLE READ"
       ]
     },
@@ -1777,11 +739,12 @@
         "a:2",
         "b:2",
         "a:3",
+        "a:4",
         "b:3",
-        "b:4",
-        "b:5"
+        "a:5",
+        "b:4"
       ],
-      "oracle:SERIALIZABLE": [
+      "NO TRANSACTION": [
         "a:0",
         "b:0",
         "a:1",
@@ -1789,7 +752,62 @@
         "a:2",
         "b:2",
         "a:3",
-        "b:3"
+        "b:3",
+        "a:4",
+        "b:4",
+        "a:5"
+      ],
+      "SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "a:5"
+      ],
+      "db2:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "db2:RS": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "db2:SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4"
+      ],
+      "mysql:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "a:5"
       ],
       "postgres:REPEATABLE READ": [
         "a:0",
@@ -1799,9 +817,20 @@
         "a:2",
         "b:2",
         "a:3",
-        "b:3"
+        "a:4",
+        "a:5"
       ],
-      "postgres:SERIALIZABLE": [
+      "postgres:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4"
+      ],
+      "sqlserver:READ COMMITTED": [
         "a:0",
         "b:0",
         "a:1",
@@ -1809,7 +838,47 @@
         "a:2",
         "b:2",
         "a:3",
-        "b:3"
+        "a:4",
+        "b:3",
+        "a:5",
+        "b:4"
+      ],
+      "sqlserver:READ COMMITTED SNAPSHOT": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "b:3",
+        "a:5",
+        "b:4"
+      ],
+      "sqlserver:READ UNCOMMITTED": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "b:3",
+        "a:5",
+        "b:4"
+      ],
+      "sqlserver:REPEATABLE READ": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "a:5"
       ],
       "sqlserver:SNAPSHOT": [
         "a:0",
@@ -1819,7 +888,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "b:3"
+        "a:4",
+        "a:5"
       ]
     },
     "wantEnds": {
@@ -1829,71 +899,80 @@
         "a:1",
         "b:1",
         "a:2",
-        "b:2",
         "a:3",
+        "b:2",
+        "a:4",
         "b:3",
-        "b:4",
-        "b:5"
+        "a:5",
+        "b:4"
       ],
-      "db2:CURSOR STABILITY": [
+      "NO TRANSACTION": [
         "a:0",
         "b:0",
         "a:1",
         "b:1",
         "a:2",
-        "a:3",
         "b:2",
+        "a:3",
         "b:3",
+        "a:4",
         "b:4",
-        "b:5"
+        "a:5"
+      ],
+      "SERIALIZABLE": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "a:3",
+        "a:4",
+        "a:5"
       ],
       "db2:REPEATABLE READ": [
         "a:0",
         "b:0",
         "a:1",
         "b:1",
+        "b:2",
         "a:2",
         "a:3",
-        "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
+        "a:4",
+        "a:5"
       ],
       "db2:RS": [
         "a:0",
         "b:0",
         "a:1",
         "b:1",
+        "b:2",
         "a:2",
         "a:3",
-        "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
+        "a:4",
+        "a:5"
       ],
       "db2:SERIALIZABLE": [
         "a:0",
         "b:0",
         "a:1",
         "b:1",
+        "b:2",
         "a:2",
         "a:3",
-        "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
+        "a:4",
+        "a:5"
       ],
-      "mysql:SERIALIZABLE": [
+      "mysql:REPEATABLE READ LOCK": [
         "a:0",
         "b:0",
         "a:1",
         "b:1",
+        "b:2",
         "a:2",
         "a:3",
-        "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
+        "a:4",
+        "a:5"
       ],
       "oracle:SERIALIZABLE": [
         "a:0",
@@ -1901,9 +980,10 @@
         "a:1",
         "b:1",
         "a:2",
-        "b:2",
         "a:3",
-        "b:3"
+        "b:2",
+        "a:4",
+        "a:5"
       ],
       "postgres:REPEATABLE READ": [
         "a:0",
@@ -1911,9 +991,21 @@
         "a:1",
         "b:1",
         "a:2",
-        "b:2",
         "a:3",
-        "b:3"
+        "b:2",
+        "a:4",
+        "a:5"
+      ],
+      "postgres:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "b:3",
+        "b:4",
+        "a:5"
       ],
       "postgres:SERIALIZABLE": [
         "a:0",
@@ -1921,9 +1013,10 @@
         "a:1",
         "b:1",
         "a:2",
-        "b:2",
         "a:3",
-        "b:3"
+        "b:2",
+        "a:4",
+        "a:5"
       ],
       "sqlserver:READ COMMITTED": [
         "a:0",
@@ -1933,9 +1026,23 @@
         "a:2",
         "a:3",
         "b:2",
+        "a:4",
         "b:3",
-        "b:4",
-        "b:5"
+        "a:5",
+        "b:4"
+      ],
+      "sqlserver:READ COMMITTED SNAPSHOT": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "a:3",
+        "b:2",
+        "a:4",
+        "b:3",
+        "a:5",
+        "b:4"
       ],
       "sqlserver:REPEATABLE READ": [
         "a:0",
@@ -1943,23 +1050,10 @@
         "a:1",
         "b:1",
         "a:2",
-        "a:3",
         "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
-      ],
-      "sqlserver:SERIALIZABLE": [
-        "a:0",
-        "b:0",
-        "a:1",
-        "b:1",
-        "a:2",
         "a:3",
-        "b:2",
-        "b:3",
-        "b:4",
-        "b:5"
+        "a:4",
+        "a:5"
       ],
       "sqlserver:SNAPSHOT": [
         "a:0",
@@ -1967,26 +1061,14 @@
         "a:1",
         "b:1",
         "a:2",
-        "b:2",
         "a:3",
-        "b:3"
+        "b:2",
+        "a:4",
+        "a:5"
       ]
     },
     "skip": {
-      "db2:NO TRANSACTION": true,
-      "db2:READ UNCOMMITTED": true,
-      "mysql:NO TRANSACTION": true,
-      "mysql:READ UNCOMMITTED": true,
-      "oracle:NO TRANSACTION": true,
-      "oracle:READ UNCOMMITTED": true,
-      "oracle:SERIALIZABLE": true,
-      "postgres:NO TRANSACTION": true,
-      "postgres:READ UNCOMMITTED": true,
-      "postgres:REPEATABLE READ": true,
-      "postgres:SERIALIZABLE": true,
-      "sqlite": true,
-      "sqlserver:NO TRANSACTION": true,
-      "sqlserver:READ UNCOMMITTED": true
+      "sqlite:SERIALIZABLE": true
     }
   },
   {
@@ -2002,12 +1084,14 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -2020,17 +1104,20 @@
           "wantErr": {
             "db2:REPEATABLE READ": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
             "db2:RS": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
-            "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n"
+            "db2:SERIALIZABLE": "SQLExecute: {40001} [IBM][CLI Driver][DB2/LINUXX8664] SQL0911N  The current transaction has been rolled back because of a deadlock or timeout.  Reason code \"2\".  SQLSTATE=40001\n",
+            "postgres:REPEATABLE READ LOCK": "ERROR: deadlock detected (SQLSTATE 40P01)"
           }
         },
         {
           "query": "SELECT value FROM foo WHERE id = 3",
-          "want": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -2045,18 +1132,22 @@
         {
           "query": "SELECT value FROM foo WHERE id = 1",
           "want": null,
-          "wantOk": [
-            {
-              "Int64": 2,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 40,
-              "Valid": true
-            }
-          ],
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 40,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         }
       ],
@@ -2070,12 +1161,14 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 3",
-          "want": [
-            {
-              "Int64": 4,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "*": [
+              {
+                "Int64": 4,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": null,
           "wantNg": null,
           "wantErr": null
@@ -2086,6 +1179,7 @@
           "wantOk": null,
           "wantNg": null,
           "wantErr": {
+            "mysql:REPEATABLE READ LOCK": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "mysql:SERIALIZABLE": "Error 1213: Deadlock found when trying to get lock; try restarting transaction",
             "sqlserver:REPEATABLE READ": "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\.",
             "sqlserver:SERIALIZABLE": "mssql: Transaction \\(Process ID \\d+\\) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction\\."
@@ -2093,14 +1187,30 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": null,
-          "wantOk": null,
-          "wantNg": [
-            {
-              "Int64": 40,
-              "Valid": true
-            }
-          ],
+          "want": {
+            "postgres:SERIALIZABLE": [
+              {
+                "Int64": 40,
+                "Valid": true
+              }
+            ]
+          },
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 2,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 40,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         },
         {
@@ -2115,18 +1225,22 @@
         {
           "query": "SELECT value FROM foo WHERE id = 3",
           "want": null,
-          "wantOk": [
-            {
-              "Int64": 4,
-              "Valid": true
-            }
-          ],
-          "wantNg": [
-            {
-              "Int64": 20,
-              "Valid": true
-            }
-          ],
+          "wantOk": {
+            "*": [
+              {
+                "Int64": 4,
+                "Valid": true
+              }
+            ]
+          },
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 20,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         }
       ]
@@ -2137,6 +1251,12 @@
       "oracle": "NEVER"
     },
     "additionalOk": {
+      "mysql": [
+        "REPEATABLE READ LOCK"
+      ],
+      "postgres": [
+        "REPEATABLE READ LOCK"
+      ],
       "sqlserver": [
         "REPEATABLE READ"
       ]
@@ -2189,6 +1309,17 @@
         "b:4",
         "b:5"
       ],
+      "mysql:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "a:3",
+        "a:4",
+        "a:5"
+      ],
       "mysql:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -2199,6 +1330,17 @@
         "a:3",
         "a:4",
         "a:5"
+      ],
+      "postgres:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "a:2",
+        "b:2",
+        "b:3",
+        "b:4",
+        "b:5"
       ],
       "postgres:SERIALIZABLE": [
         "a:0",
@@ -2284,6 +1426,17 @@
         "b:4",
         "b:5"
       ],
+      "mysql:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "a:3",
+        "a:4",
+        "a:5"
+      ],
       "mysql:SERIALIZABLE": [
         "a:0",
         "b:0",
@@ -2294,6 +1447,17 @@
         "a:3",
         "a:4",
         "a:5"
+      ],
+      "postgres:REPEATABLE READ LOCK": [
+        "a:0",
+        "b:0",
+        "a:1",
+        "b:1",
+        "b:2",
+        "a:2",
+        "b:3",
+        "b:4",
+        "b:5"
       ],
       "postgres:SERIALIZABLE": [
         "a:0",
