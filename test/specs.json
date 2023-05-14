@@ -606,7 +606,7 @@
           "wantErr": null
         },
         {
-          "query": "UPDATE foo SET value = 20 WHERE id = 1",
+          "query": "UPDATE foo SET value = 3 WHERE id = 1 -- increment value",
           "want": null,
           "wantOk": null,
           "wantNg": null,
@@ -630,11 +630,72 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": null,
+          "want": {
+            "db2:REPEATABLE READ": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "db2:RS": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "db2:SERIALIZABLE": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "mysql:SERIALIZABLE": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "oracle:SERIALIZABLE": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "postgres:REPEATABLE READ": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "postgres:SERIALIZABLE": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "sqlserver:REPEATABLE READ": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "sqlserver:SERIALIZABLE": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ],
+            "sqlserver:SNAPSHOT": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ]
+          },
           "wantOk": {
             "*": [
               {
-                "Int64": 20,
+                "Int64": 4,
                 "Valid": true
               }
             ]
@@ -642,7 +703,7 @@
           "wantNg": {
             "*": [
               {
-                "Int64": 200,
+                "Int64": 3,
                 "Valid": true
               }
             ]
@@ -673,7 +734,7 @@
           "wantErr": null
         },
         {
-          "query": "UPDATE foo SET value = 200 WHERE id = 1",
+          "query": "UPDATE foo SET value = 3 WHERE id = 1 -- increment value",
           "want": null,
           "wantOk": null,
           "wantNg": null,
@@ -700,16 +761,23 @@
         },
         {
           "query": "SELECT value FROM foo WHERE id = 1",
-          "want": {
+          "want": null,
+          "wantOk": {
             "*": [
               {
-                "Int64": 200,
+                "Int64": 4,
                 "Valid": true
               }
             ]
           },
-          "wantOk": null,
-          "wantNg": null,
+          "wantNg": {
+            "*": [
+              {
+                "Int64": 3,
+                "Valid": true
+              }
+            ]
+          },
           "wantErr": null
         }
       ]
@@ -776,7 +844,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ],
       "db2:RS": [
         "a:0",
@@ -786,7 +855,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ],
       "db2:SERIALIZABLE": [
         "a:0",
@@ -796,7 +866,8 @@
         "a:2",
         "b:2",
         "a:3",
-        "a:4"
+        "a:4",
+        "a:5"
       ],
       "mysql:REPEATABLE READ LOCK": [
         "a:0",

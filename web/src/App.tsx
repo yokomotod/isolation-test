@@ -767,11 +767,11 @@ const Row: React.FC<{
 
       const want = step.want && findValue(step.want, database, level);
       const wantOk =
-        step.want != undefined
+        want != undefined
           ? undefined
           : step.wantOk && findValue(step.wantOk, database, level);
       const wantNg =
-        step.want != undefined
+        want != undefined
           ? undefined
           : step.wantNg && findValue(step.wantNg, database, level);
       const wantErr = step.wantErr && findValue(step.wantErr, database, level);
