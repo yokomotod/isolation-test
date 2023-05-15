@@ -294,7 +294,7 @@ if (orderedRows.length !== rows.length) {
     `orderedRows.length !== rows.length: ${orderedRows.length}, ${rows.length}`
   );
 }
-orderedRows.splice(0, orderedRows.length, ...rows);
+// orderedRows.splice(0, orderedRows.length, ...rows);
 
 type Tx = {
   query: string;
@@ -789,7 +789,9 @@ const Row: React.FC<{
             {wantErr ? (
               <div>
                 <span>
-                  {wantErr.includes("deadlock") ? "Deadlock Error" : "Abort"}
+                  {wantErr.toLowerCase().includes("deadlock")
+                    ? "Deadlock Error"
+                    : "Abort"}
                 </span>
               </div>
             ) : wantOk && wantNg ? (
