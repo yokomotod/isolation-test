@@ -475,7 +475,7 @@ function App() {
             Isolation Test
           </h1>
           <div className="flex items-center">
-            <a href="https://github.com/yokomotod/zakodb">
+            <a href="https://github.com/yokomotod/isolation-test">
               <GitHubMark
                 width={32}
                 height={32}

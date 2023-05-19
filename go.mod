@@ -1,4 +1,4 @@
-module github.com/yokomotod/zakodb
+module github.com/yokomotod/isolation-test
 
 go 1.19
 

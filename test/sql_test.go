@@ -22,7 +22,7 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"github.com/yokomotod/zakodb/pkg/transactonstest"
+	"github.com/yokomotod/isolation-test/pkg/transactonstest"
 	"golang.org/x/exp/slices"
 )
 
