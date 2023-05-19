@@ -2,6 +2,7 @@ import "./App.css";
 import specs from "../../test/specs.json";
 import { useState } from "react";
 import { useEffect } from "react";
+import { ReactComponent as GitHubMark } from "./github-mark.svg";
 
 const POSTGRES = "postgres";
 const MYSQL = "mysql";
@@ -469,9 +470,21 @@ function App() {
   return (
     <div className="antialiased text-slate-700 xdark:text-slate-400 bg-white xdark:bg-slate-900">
       <div className="sticky top-0 bg-white border-b border-slate-900/10">
-        <h1 className="max-w-8xl mx-auto px-8 py-4 text-3xl font-extrabold text-slate-800">
-          Isolation Test
-        </h1>
+        <div className="max-w-8xl mx-auto px-8 py-4 flex justify-between">
+          <h1 className="text-3xl font-extrabold text-slate-800">
+            Isolation Test
+          </h1>
+          <div className="flex items-center">
+            <a href="https://github.com/yokomotod/zakodb">
+              <GitHubMark
+                width={32}
+                height={32}
+                viewBox="0 0 98 96"
+                fill="currentColor"
+              />
+            </a>
+          </div>
+        </div>
       </div>
       {/* <CheckBoxes items={levels} onChange={setLevelChecks} /> */}
       <div className="max-w-8xl mx-auto px-8 py-4">
@@ -492,15 +505,15 @@ function App() {
           </button>
         </div>
         {/* `height: 1px` to make <td> children `height: 100%` works */}
-        <table border={1} className="border border-slate-400 h-[1px]">
+        <table border={1} className="border border-slate-400 w-full h-[1px]">
           <thead>
             <tr>
               {!shouldFilter && <th className="border border-slate-300 p-4" />}
-              <th className="border border-slate-300 p-4">DBMS</th>
+              <th className="border border-slate-300 p-4">データベース</th>
               <th className="border border-slate-300 p-4">
                 設定値 (★:デフォルト)
               </th>
-              <th className="border border-slate-300 p-4">Model</th>
+              <th className="border border-slate-300 p-4">モデル</th>
               {orderedSpecs.map((spec) => (
                 <th className="border border-slate-300 p-4" key={spec.name}>
                   {spec.name}
@@ -729,7 +742,7 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
             wantStarts: {getValue(wantStarts, database, level).join(", ")}
           </div>
           <div>wantEnds: {getValue(wantEnds, database, level).join(", ")}</div> */}
-        <table className="border border-slate-400">
+        <table className="w-full border border-slate-400">
           <thead>
             <tr>
               <th className="border border-slate-300 p-1" rowSpan={2}>
