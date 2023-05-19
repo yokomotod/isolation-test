@@ -344,8 +344,8 @@ function convertTxs(
   const rows = [];
   const isWaiting: Record<string, boolean> = { a: false, b: false };
   for (let i = 0; i < n; i++) {
-    console.log("------------");
-    console.log(`end: ${wantEnds[i]}, ${isWaiting}`);
+    // console.log("------------");
+    // console.log(`end: ${wantEnds[i]}, ${isWaiting}`);
     const [tx, startIdxStr] = wantStarts[i].split(":");
     const [endTx] = wantEnds[i].split(":");
 
@@ -362,28 +362,28 @@ function convertTxs(
       isWaiting[tx] = true;
     }
 
-    console.log(isWaiting);
+    // console.log(isWaiting);
     const cols = [];
     if (tx === "b") {
       if (!isWaiting["a"]) {
-        console.log(`padding a`);
+        // console.log(`padding a`);
         cols.push({});
       } else {
         cols.push(null);
       }
     }
-    console.log(
-      `${wantStarts[i]} ${txs[txId][startIndex].query} rowspan=${
-        endPosition - i + 1
-      }`
-    );
+    // console.log(
+    //   `${wantStarts[i]} ${txs[txId][startIndex].query} rowspan=${
+    //     endPosition - i + 1
+    //   }`
+    // );
     cols.push({
       ...txs[txId][startIndex],
       rowspan: isWaiting[tx] ? endPosition - i + 2 : 1,
     });
     if (tx === "a") {
       if (!isWaiting["b"]) {
-        console.log(`padding b`);
+        // console.log(`padding b`);
         cols.push({});
       } else {
         cols.push(null);
@@ -393,7 +393,7 @@ function convertTxs(
     rows.push(cols);
 
     if (isWaiting[endTx]) {
-      console.log("WAIT END: " + wantEnds[i]);
+      // console.log("WAIT END: " + wantEnds[i]);
       rows.push([{}]);
 
       isWaiting[endTx] = false;
@@ -468,7 +468,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1>zakodb</h1>
+      <h1>Isolation Test</h1>
       {/* <CheckBoxes items={levels} onChange={setLevelChecks} /> */}
       <button
         disabled={shouldFilter || checks.size === 0}
@@ -699,13 +699,13 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
           <h4>
             {name}: {ok ? "OK" : "NG"}
           </h4>
-          <div>threshold: {JSON.stringify(threshold)}</div>
+          {/* <div>threshold: {JSON.stringify(threshold)}</div>
           <div>wantStarts: {JSON.stringify(wantStarts)}</div>
           <div>wantEnds: {JSON.stringify(wantEnds)}</div>
           <div>
             wantStarts: {getValue(wantStarts, database, level).join(", ")}
           </div>
-          <div>wantEnds: {getValue(wantEnds, database, level).join(", ")}</div>
+          <div>wantEnds: {getValue(wantEnds, database, level).join(", ")}</div> */}
           <table className="margin-top-8">
             <thead>
               <tr>
