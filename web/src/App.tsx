@@ -508,7 +508,7 @@ function App() {
         <table border={1} className="border border-slate-400 w-full h-[1px]">
           <thead>
             <tr>
-              {!shouldFilter && <th className="border border-slate-300 p-4" />}
+              <th className="border border-slate-300 p-4" />
               <th className="border border-slate-300 p-4">データベース</th>
               <th className="border border-slate-300 p-4">
                 設定値 (★:デフォルト)
@@ -554,22 +554,20 @@ function App() {
                   //     : undefined
                   // }
                 >
-                  {!shouldFilter && (
-                    <td className="border border-slate-300 p-4">
-                      <input
-                        type="checkbox"
-                        onChange={(e) => {
-                          const newChecks = new Set(checks);
-                          if (e.currentTarget.checked) {
-                            newChecks.add(key);
-                          } else {
-                            newChecks.delete(key);
-                          }
-                          setChecks(newChecks);
-                        }}
-                      />
-                    </td>
-                  )}
+                  <td className="border border-slate-300 p-4">
+                    <input
+                      type="checkbox"
+                      onChange={(e) => {
+                        const newChecks = new Set(checks);
+                        if (e.currentTarget.checked) {
+                          newChecks.add(key);
+                        } else {
+                          newChecks.delete(key);
+                        }
+                        setChecks(newChecks);
+                      }}
+                    />
+                  </td>
                   <td className="border border-slate-300 p-4">
                     {dbNames[database]}
                   </td>
