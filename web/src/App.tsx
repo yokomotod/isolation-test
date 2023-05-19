@@ -491,7 +491,8 @@ function App() {
             解除
           </button>
         </div>
-        <table border={1} className="border border-slate-400">
+        {/* `height: 1px` to make <td> children `height: 100%` works */}
+        <table border={1} className="border border-slate-400 h-[1px]">
           <thead>
             <tr>
               {!shouldFilter && <th className="border border-slate-300 p-4" />}
@@ -602,7 +603,7 @@ function App() {
 
                     return (
                       <td
-                        className="border border-slate-300 p-4 text-center"
+                        className="border border-slate-300 hover:border-4"
                         key={spec.name}
                         // style={{
                         //   backgroundColor: skip
@@ -621,7 +622,11 @@ function App() {
                         {skip ? (
                           "n/a"
                         ) : (
-                          <a onClick={() => select({ database, level, spec })}>
+                          <a
+                            className="w-full h-full flex items-center justify-center text-center"
+                            href={`#${database}-${level}-${spec.name}`}
+                            onClick={() => select({ database, level, spec })}
+                          >
                             {ok
                               ? deadLocked
                                 ? ["◯", <br />, "(deadlock)"]
@@ -714,9 +719,9 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
   return (
     <div className="py-4">
       <h2 className="py-4 text-xl font-bold text-slate-800">
-        {dbNames[database]} / {level} / {name}: {ok ? "OK" : "NG"}
+        {dbNames[database]} - {level} - {name}: {ok ? "OK" : "NG"}
       </h2>
-      <div id={`${name}-${database}-${level}`}>
+      <div id={`${database}-${level}-${name}`}>
         {/* <div>threshold: {JSON.stringify(threshold)}</div>
           <div>wantStarts: {JSON.stringify(wantStarts)}</div>
           <div>wantEnds: {JSON.stringify(wantEnds)}</div>
