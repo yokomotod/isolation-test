@@ -467,167 +467,188 @@ function App() {
   let prevRow: { database: string; level: string } | undefined;
 
   return (
-    <div className="App">
-      <h1>Isolation Test</h1>
+    <div className="antialiased text-slate-700 xdark:text-slate-400 bg-white xdark:bg-slate-900">
+      <div className="sticky top-0 bg-white border-b border-slate-900/10">
+        <h1 className="max-w-8xl mx-auto px-8 py-4 text-3xl font-extrabold text-slate-800">
+          Isolation Test
+        </h1>
+      </div>
       {/* <CheckBoxes items={levels} onChange={setLevelChecks} /> */}
-      <button
-        disabled={shouldFilter || checks.size === 0}
-        onClick={() => setShouldFilter(true)}
-      >
-        絞り込み
-      </button>
-      <button disabled={!shouldFilter} onClick={() => setShouldFilter(false)}>
-        解除
-      </button>
-      <table border={1} className="margin-top-8">
-        <thead>
-          <tr>
-            {!shouldFilter && <th />}
-            <th>DBMS</th>
-            <th>設定値 (★:デフォルト)</th>
-            <th>Model</th>
-            {orderedSpecs.map((spec) => (
-              <th key={spec.name}>{spec.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {orderedRows.map(({ database, level }) => {
-            if (
-              levelChecks.includes(true) &&
-              !levelChecks[(levels as readonly string[]).indexOf(level)]
-            ) {
-              return null;
-            }
+      <div className="max-w-8xl mx-auto px-8 py-4">
+        <div className="p-2 flex space-x-2">
+          <button
+            className="px-2 py-1 font-semibold text-sm text-slate-700 rounded-md ring-1 disabled:opacity-75"
+            disabled={shouldFilter || checks.size === 0}
+            onClick={() => setShouldFilter(true)}
+          >
+            絞り込み
+          </button>
+          <button
+            className="px-2 py-1 font-semibold text-sm text-slate-700 rounded-md ring-1 disabled:opacity-75"
+            disabled={!shouldFilter}
+            onClick={() => setShouldFilter(false)}
+          >
+            解除
+          </button>
+        </div>
+        <table border={1} className="border border-slate-400">
+          <thead>
+            <tr>
+              {!shouldFilter && <th className="border border-slate-300 p-4" />}
+              <th className="border border-slate-300 p-4">DBMS</th>
+              <th className="border border-slate-300 p-4">
+                設定値 (★:デフォルト)
+              </th>
+              <th className="border border-slate-300 p-4">Model</th>
+              {orderedSpecs.map((spec) => (
+                <th className="border border-slate-300 p-4" key={spec.name}>
+                  {spec.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {orderedRows.map(({ database, level }) => {
+              if (
+                levelChecks.includes(true) &&
+                !levelChecks[(levels as readonly string[]).indexOf(level)]
+              ) {
+                return null;
+              }
 
-            prevRow = currentRow;
-            currentRow = { database, level };
+              prevRow = currentRow;
+              currentRow = { database, level };
 
-            const levelName = (
-              getValue(dbLevels, database) as Record<string, string>
-            )[level];
-            const isDefault = defaultLevel[database] == level;
+              const levelName = (
+                getValue(dbLevels, database) as Record<string, string>
+              )[level];
+              const isDefault = defaultLevel[database] == level;
 
-            const key = `${database}-${level}`;
-            if (shouldFilter && !checks.has(key)) {
-              return null;
-            }
+              const key = `${database}-${level}`;
+              if (shouldFilter && !checks.has(key)) {
+                return null;
+              }
 
-            return (
-              <tr
-                key={key}
-                // className={
-                //   prevRow &&
-                //   models[prevRow.database][prevRow.level] !=
-                //     models[database][level]
-                //     ? "border-top-2"
-                //     : undefined
-                // }
-              >
-                {!shouldFilter && (
-                  <td className="center">
-                    <input
-                      type="checkbox"
-                      onChange={(e) => {
-                        const newChecks = new Set(checks);
-                        if (e.currentTarget.checked) {
-                          newChecks.add(key);
-                        } else {
-                          newChecks.delete(key);
-                        }
-                        setChecks(newChecks);
-                      }}
-                    />
-                  </td>
-                )}
-                <td>{dbNames[database]}</td>
-                <td>
-                  {levelName}
-                  {isDefault && "★"}
-                </td>
-                <td>{models[database][level]}</td>
-                {orderedSpecs.map((spec) => {
-                  const skip =
-                    !!spec.skip && findValue(spec.skip, database, level);
-                  let ok =
-                    levelInt[level] >=
-                    levelInt[getValue(spec.threshold, database)];
-
-                  if (
-                    (spec.additionalOk as Record<string, string[]> | null)?.[
-                      database
-                    ]?.includes(level)
-                  ) {
-                    ok = true;
-                  }
-                  const aborted = spec.txs.some((queries) =>
-                    queries.some(
-                      (q) => q.wantErr && `${database}:${level}` in q.wantErr
-                    )
-                  );
-                  const deadLocked = spec.txs.some((queries) =>
-                    queries.some(
-                      (q) =>
-                        q.wantErr &&
-                        (q.wantErr as Record<string, string> | null)?.[
-                          `${database}:${level}`
-                        ]
-                          ?.toLowerCase()
-                          ?.includes("deadlock")
-                    )
-                  );
-                  const locked = isLocked(
-                    getValue(spec.wantEnds, database, level)
-                  );
-
-                  return (
-                    <td
-                      key={spec.name}
-                      className="center"
-                      // style={{
-                      //   backgroundColor: skip
-                      //     ? "lightgray"
-                      //     : ok
-                      //     ? deadLocked
-                      //       ? "purple"
-                      //       : aborted
-                      //       ? "yellow"
-                      //       : locked
-                      //       ? "teal"
-                      //       : "lime"
-                      //     : "red",
-                      // }}
-                    >
-                      {skip ? (
-                        "n/a"
-                      ) : (
-                        <a onClick={() => select({ database, level, spec })}>
-                          {ok
-                            ? deadLocked
-                              ? ["◯", <br />, "(deadlock)"]
-                              : aborted
-                              ? ["◯", <br />, "(aborted)"]
-                              : locked
-                              ? ["◯", <br />, "(locked)"]
-                              : "◯"
-                            : "×"}
-                        </a>
-                      )}
+              return (
+                <tr
+                  key={key}
+                  // className={
+                  //   prevRow &&
+                  //   models[prevRow.database][prevRow.level] !=
+                  //     models[database][level]
+                  //     ? "border-top-2"
+                  //     : undefined
+                  // }
+                >
+                  {!shouldFilter && (
+                    <td className="border border-slate-300 p-4">
+                      <input
+                        type="checkbox"
+                        onChange={(e) => {
+                          const newChecks = new Set(checks);
+                          if (e.currentTarget.checked) {
+                            newChecks.add(key);
+                          } else {
+                            newChecks.delete(key);
+                          }
+                          setChecks(newChecks);
+                        }}
+                      />
                     </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {selected && (
-        <Anomaly
-          database={selected.database}
-          level={selected.level}
-          {...selected.spec}
-        />
-      )}
+                  )}
+                  <td className="border border-slate-300 p-4">
+                    {dbNames[database]}
+                  </td>
+                  <td className="border border-slate-300 p-4">
+                    {levelName}
+                    {isDefault && "★"}
+                  </td>
+                  <td className="border border-slate-300 p-4">
+                    {models[database][level]}
+                  </td>
+                  {orderedSpecs.map((spec) => {
+                    const skip =
+                      !!spec.skip && findValue(spec.skip, database, level);
+                    let ok =
+                      levelInt[level] >=
+                      levelInt[getValue(spec.threshold, database)];
+
+                    if (
+                      (spec.additionalOk as Record<string, string[]> | null)?.[
+                        database
+                      ]?.includes(level)
+                    ) {
+                      ok = true;
+                    }
+                    const aborted = spec.txs.some((queries) =>
+                      queries.some(
+                        (q) => q.wantErr && `${database}:${level}` in q.wantErr
+                      )
+                    );
+                    const deadLocked = spec.txs.some((queries) =>
+                      queries.some(
+                        (q) =>
+                          q.wantErr &&
+                          (q.wantErr as Record<string, string> | null)?.[
+                            `${database}:${level}`
+                          ]
+                            ?.toLowerCase()
+                            ?.includes("deadlock")
+                      )
+                    );
+                    const locked = isLocked(
+                      getValue(spec.wantEnds, database, level)
+                    );
+
+                    return (
+                      <td
+                        className="border border-slate-300 p-4 text-center"
+                        key={spec.name}
+                        // style={{
+                        //   backgroundColor: skip
+                        //     ? "lightgray"
+                        //     : ok
+                        //     ? deadLocked
+                        //       ? "purple"
+                        //       : aborted
+                        //       ? "yellow"
+                        //       : locked
+                        //       ? "teal"
+                        //       : "lime"
+                        //     : "red",
+                        // }}
+                      >
+                        {skip ? (
+                          "n/a"
+                        ) : (
+                          <a onClick={() => select({ database, level, spec })}>
+                            {ok
+                              ? deadLocked
+                                ? ["◯", <br />, "(deadlock)"]
+                                : aborted
+                                ? ["◯", <br />, "(aborted)"]
+                                : locked
+                                ? ["◯", <br />, "(locked)"]
+                                : "◯"
+                              : "×"}
+                          </a>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {selected && (
+          <Anomaly
+            database={selected.database}
+            level={selected.level}
+            {...selected.spec}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -691,57 +712,53 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
   );
 
   return (
-    <div>
-      <h2>{dbNames[database]}</h2>
-      <div key={`${name}-${level}`}>
-        <h3>{level}</h3>
-        <div key={database} id={`${name}-${database}-${level}`}>
-          <h4>
-            {name}: {ok ? "OK" : "NG"}
-          </h4>
-          {/* <div>threshold: {JSON.stringify(threshold)}</div>
+    <div className="py-4">
+      <h2 className="py-4 text-xl font-bold text-slate-800">
+        {dbNames[database]} / {level} / {name}: {ok ? "OK" : "NG"}
+      </h2>
+      <div id={`${name}-${database}-${level}`}>
+        {/* <div>threshold: {JSON.stringify(threshold)}</div>
           <div>wantStarts: {JSON.stringify(wantStarts)}</div>
           <div>wantEnds: {JSON.stringify(wantEnds)}</div>
           <div>
             wantStarts: {getValue(wantStarts, database, level).join(", ")}
           </div>
           <div>wantEnds: {getValue(wantEnds, database, level).join(", ")}</div> */}
-          <table className="margin-top-8">
-            <thead>
-              <tr>
-                <th className="border-1 bottom" rowSpan={2}>
-                  時刻
-                </th>
-                {txs.map((_, i) => (
-                  <>
-                    <th className="border-1 border-left-2" colSpan={2}>
-                      トランザクション{i + 1}
-                    </th>
-                  </>
-                ))}
-              </tr>
-              <tr>
-                {txs.map((_, i) => (
-                  <>
-                    <th className="border-1 border-left-2">クエリ</th>
-                    <th className="border-1 bottom">結果</th>
-                  </>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="border-top-2">
-              {rows.map((steps, time) => (
-                <Row
-                  time={time}
-                  database={database}
-                  level={level}
-                  ok={ok}
-                  steps={steps}
-                />
+        <table className="border border-slate-400">
+          <thead>
+            <tr>
+              <th className="border border-slate-300 p-1" rowSpan={2}>
+                時刻
+              </th>
+              {txs.map((_, i) => (
+                <>
+                  <th className="border border-slate-300 p-1" colSpan={2}>
+                    トランザクション{i + 1}
+                  </th>
+                </>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </tr>
+            <tr>
+              {txs.map((_, i) => (
+                <>
+                  <th className="border border-slate-300 p-1">クエリ</th>
+                  <th className="border border-slate-300 p-1">結果</th>
+                </>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="border-top-2">
+            {rows.map((steps, time) => (
+              <Row
+                time={time}
+                database={database}
+                level={level}
+                ok={ok}
+                steps={steps}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -759,7 +776,7 @@ const Row: React.FC<{
   > | null)[];
 }> = ({ time, database, level, ok, steps }) => (
   <tr key={time}>
-    <td className="border-1 center">t{time + 1}</td>
+    <td className="border border-slate-300 p-1 text-center">T{time + 1}</td>
     {steps.map((step, j) => {
       if (!step) {
         return null;
@@ -778,11 +795,14 @@ const Row: React.FC<{
 
       return (
         <>
-          <td className="border-1 border-left-2 top" rowSpan={step.rowspan}>
-            {step.query || "-"}
+          <td
+            className="border border-slate-300 p-1 align-top"
+            rowSpan={step.rowspan}
+          >
+            {step.query}
           </td>
           <td
-            className="border-1 bottom"
+            className="border border-slate-300 p-1 align-bottom"
             rowSpan={step.rowspan}
             style={{ minWidth: 24 }}
           >
