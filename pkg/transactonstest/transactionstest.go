@@ -29,7 +29,6 @@ type Query struct {
 func getGoID() int {
 	var buf [64]byte
 	n := runtime.Stack(buf[:], false)
-	// fmt.Printf("%s\n", buf)
 	idField := strings.Fields(strings.TrimPrefix(string(buf[:n]), "goroutine "))[0]
 	id, err := strconv.Atoi(idField)
 	if err != nil {
@@ -53,7 +52,6 @@ type ConnOrTx interface {
 func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolationLevel sql.IsolationLevel, txs [][]Query, wantStarts, wantEnds []string, wantOK bool) {
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev)
-	// logger.Printf("GOMAXPROCS: %d\n", runtime.GOMAXPROCS(0))
 
 	logger := log.New(os.Stdout, "", log.Ltime|log.Lmicroseconds)
 
@@ -66,27 +64,18 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 	ran := -1
 
 	for i := range txs {
-		// logger.Printf("start ch%d\n", i)
 		channels[i] = make(chan struct{})
 
-		// logger.Printf("tx%d BeginTx\n", i)
 		var conn ConnOrTx
 		conn, err := db.Conn(ctx)
 		if err != nil {
 			panic(err)
 		}
-		// _, err = conn.ExecContext(ctx, "SELECT 1") // ping
-		// if err != nil {
-		// 	panic(err)
-		// }
 
 		i := i
 
 		go func() {
-			// debug.PrintStack()
 			goID := getGoID()
-			// fmt.Println("goroutine started")
-			// conn := conn
 
 			ch := channels[i]
 			defer close(ch)
@@ -112,7 +101,6 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 							_, err = conn.ExecContext(ctx, q)
 						}
 
-						// if i < len(qs)-1 && err != nil {
 						if err != nil {
 							panic(err)
 						}
@@ -158,8 +146,6 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 					} else if err == sql.ErrNoRows && want == nil {
 						// ok
 					} else {
-						// fmt.Printf("%#v\n", err)
-						// t.Error(err)
 						fmt.Println("unexpected error")
 						fmt.Println(err)
 						panic(err)
@@ -190,8 +176,6 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 					}
 				}
 
-				// ch <- struct{}{}
-				// if time.Since(start) > 10*time.Millisecond {
 				if ran != i {
 					// additional sleep after lock
 					logger.Printf("(go %d) additional sleep after lock\n", goID)
@@ -206,10 +190,6 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 
 			logger.Printf("(go %d) ok: %t\n", goID, ok)
 			gotOKs[i] = ok
-			// err = tx.Commit()
-			// if err != nil {
-			// 	panic(err)
-			// }
 		}()
 		// logger.Printf("tx%d runtime.Gosched()\n", i)
 		runtime.Gosched()
@@ -243,7 +223,6 @@ func RunTransactionsTest(t *testing.T, ctx context.Context, db *sql.DB, isolatio
 				} else {
 					logger.Printf("ch%d done\n", i)
 				}
-			// default:
 			case <-time.After(waitSleep):
 				logger.Printf("ch%d waiting\n", i)
 				running = true

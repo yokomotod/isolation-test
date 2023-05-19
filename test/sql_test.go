@@ -3,249 +3,21 @@ package test
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/docker/go-connections/nat"
-	"github.com/go-sql-driver/mysql"
 	_ "github.com/ibmdb/go_ibm_db"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/microsoft/go-mssqldb"
 	go_ora "github.com/sijms/go-ora/v2"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yokomotod/isolation-test/pkg/transactonstest"
 	"golang.org/x/exp/slices"
 )
-
-func setupMySQL(ctx context.Context) (testcontainers.Container, driver.Connector, error) {
-	req := testcontainers.ContainerRequest{
-		Image: "mysql:8.0.31",
-		Env: map[string]string{
-			"MYSQL_DATABASE": "test",
-			// "MYSQL_USER":                 "user",
-			// "MYSQL_PASSWORD":             "password",
-			"MYSQL_ALLOW_EMPTY_PASSWORD": "yes",
-		},
-		ExposedPorts: []string{"3306/tcp"},
-		WaitingFor: wait.ForSQL("3306", "mysql", func(host string, port nat.Port) string {
-			cfg := mysql.NewConfig()
-			cfg.Net = "tcp"
-			cfg.Addr = net.JoinHostPort(host, port.Port())
-			cfg.DBName = "test"
-			cfg.User = "root"
-			// cfg.Passwd = "password"
-			return cfg.FormatDSN()
-		}),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	port, err := container.MappedPort(ctx, "3306")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cfg := mysql.NewConfig()
-	cfg.Net = "tcp"
-	cfg.Addr = net.JoinHostPort("localhost", port.Port())
-	cfg.DBName = "test"
-	cfg.User = "root"
-	// cfg.Passwd = "password"
-
-	connector, err := mysql.NewConnector(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return container, connector, nil
-}
-
-func setupPostgreSQL(ctx context.Context) (testcontainers.Container, driver.Connector, error) {
-	req := testcontainers.ContainerRequest{
-		Image: "postgres:15.0",
-		Env: map[string]string{
-			// "MYSQL_DATABASE": "test",
-			// "MYSQL_USER":                 "user",
-			"POSTGRES_PASSWORD": "postgres",
-			// "postgres": "yes",
-		},
-		ExposedPorts: []string{"5432/tcp"},
-		WaitingFor: wait.ForSQL("5432", "pgx", func(host string, port nat.Port) string {
-			return fmt.Sprintf("postgres://postgres:postgres@127.0.0.1:%d/postgres", port.Int())
-		}),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	port, err := container.MappedPort(ctx, "5432")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	config, err := pgx.ParseConfig(fmt.Sprintf("postgres://postgres:postgres@127.0.0.1:%d/postgres", port.Int()))
-	if err != nil {
-		return nil, nil, err
-	}
-	connector := stdlib.GetConnector(*config)
-
-	return container, connector, nil
-}
-
-// func TestMySQL(t *testing.T) {
-// 	t.SkipNow()
-// 	ctx := context.Background()
-// 	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(3*time.Second))
-// 	defer cancel()
-// 	// container, connector, err := setupMySQL(ctx)
-// 	// if err != nil {
-// 	// 	t.Fatal(err)
-// 	// }
-// 	// defer container.Terminate(ctx)
-// 	cfg := mysql.NewConfig()
-// 	// cfg.Net = "tcp"
-// 	// cfg.Addr = net.JoinHostPort("127.0.0.1", 3306)
-// 	cfg.DBName = "test"
-// 	cfg.User = "root"
-// 	// cfg.Passwd = "password"
-
-// 	connector, err := mysql.NewConnector(cfg)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	db := sql.OpenDB(connector)
-// 	defer db.Close()
-
-// 	conn, err := db.Conn(ctx)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	_, err = conn.ExecContext(ctx, "SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	_, err = conn.ExecContext(ctx, "DROP TABLE IF EXISTS foo")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT, value INT)")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	_, err = conn.ExecContext(ctx, "INSERT INTO foo VALUES (1, 2), (3, 4)")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	txs := [][]string{
-// 		{
-// 			"UPDATE foo SET value = 20 WHERE id = 1",
-// 			"UPDATE foo SET value = 40 WHERE id = 3",
-// 		},
-// 		{
-// 			"UPDATE foo SET value = 200 WHERE id = 1",
-// 			"UPDATE foo SET value = 400 WHERE id = 3",
-// 		},
-// 	}
-
-// 	wantStarts := []string{"a:0", "b:0", "a:1", "b:1"}
-// 	wantEnds := []string{"a:0", "a:1", "b:0", "b:1"}
-
-// 	transactonstest.RunTransactionsTest(t, ctx, db, txs, wantStarts, wantEnds)
-// }
-
-// func TestPostgreSQL(t *testing.T) {
-// 	t.SkipNow()
-// 	ctx := context.Background()
-
-// 	container, connector, err := setupPostgreSQL(ctx)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	defer container.Terminate(ctx)
-
-// 	db := sql.OpenDB(connector)
-// 	defer db.Close()
-
-// 	conn, err := db.Conn(ctx)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	// _, err = conn.ExecContext(ctx, "SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
-// 	// if err != nil {
-// 	// 	t.Fatal(err)
-// 	// }
-
-// 	_, err = conn.ExecContext(ctx, "CREATE TABLE foo (id INT, value INT)")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	_, err = conn.ExecContext(ctx, "INSERT INTO foo VALUES (1, 2), (3, 4)")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	txs := [][]string{
-// 		{
-// 			"UPDATE foo SET value = 20 WHERE id = 1",
-// 			"UPDATE foo SET value = 40 WHERE id = 3",
-// 		},
-// 		{
-// 			"UPDATE foo SET value = 200 WHERE id = 1",
-// 			"UPDATE foo SET value = 400 WHERE id = 3",
-// 		},
-// 	}
-
-// 	wantStarts := []string{"a:0", "b:0", "a:1", "b:1"}
-// 	wantEnds := []string{"a:0", "a:1", "b:0", "b:1"}
-
-// 	transactonstest.RunTransactionsTest(t, ctx, db, txs, wantStarts, wantEnds)
-// }
-
-func TestSQLite(t *testing.T) {
-	t.SkipNow()
-	ctx := context.Background()
-
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = conn.ExecContext(ctx, "PRAGMA read_uncommitted = true")
-	if err != nil {
-		t.Fatal(err)
-	}
-}
 
 const (
 	MYSQL     = "mysql"
@@ -445,9 +217,6 @@ func rollback(database string, level string) string {
 	return "ROLLBACK"
 }
 
-// docker run -d -e MYSQL_DATABASE=test -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 mysql:8.0.31
-// docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:15.0
-
 func newNullInts(values ...int64) []sql.NullInt64 {
 	res := make([]sql.NullInt64, len(values))
 	for i, v := range values {
@@ -616,49 +385,6 @@ var specs = []spec{
 			"*":                               genSeq(3, 4),
 		},
 	},
-	// {
-	// 	Name: "fuzzy read with locking read",
-	// 	Txs: [][]query{
-	// 		{
-	// 			{},
-	// 			{},
-	// 			{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-	// 		},
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1 FOR SHARE", WantOK: newNullInts(2), WantNG: newNullInts(20), WantErr: map[string]string{
-	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 			}},
-	// 			{Query: "COMMIT"},
-	// 		},
-	// 	},
-	// 	Threshold: map[string]string{
-	// 		// https://zenn.dev/link/comments/7fb7fc29bb457d
-	// 		// SELECT ... FOR でのロック読み取りはスナップショットではなく本体を読む
-	// 		MYSQL: SERIALIZABLE,
-	// 		"*":   REPEATABLE_READ,
-	// 	},
-	// 	WantStarts: map[string][]string{
-	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3), // 2nd SELECT crashes
-	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3), // 2nd SELECT crashes
-	// 		"*":                              genSeq(3, 4),
-	// 	},
-	// 	WantEnds: map[string][]string{
-	// 		MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // UPDATE is locked
-	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(3, 3),                                      // 2nd SELECT crashes
-	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(3, 3),                                      // 2nd SELECT crashes
-	// 		"*":                              genSeq(3, 4),
-	// 	},
-	// 	Skip: map[string]bool{
-	// 		REPEATABLE_READ_LOCK: true,
-	// 		SQLSERVER:            true, // doesn't support SELECT ... FOR
-	// 		ORACLE:               true,
-	// 		DB2:                  true,
-	// 		SQLITE:               true, // doesn't support SELECT ... FOR
-	// 	},
-	// },
 
 	{
 		Name: "phantom read",
@@ -694,98 +420,7 @@ var specs = []spec{
 			"*":                                genSeq(3, 4),
 		},
 	},
-	// {
-	// 	Name: "phantom read with locking read",
-	// 	Txs: [][]query{
-	// 		{
-	// 			{},
-	// 			{},
-	// 			{Query: "INSERT INTO foo VALUES (2, 20)"},
-	// 		},
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "SELECT id FROM foo WHERE id < 3", Want: newNullInts(1)},
-	// 			// note: Postgresでは集約関数でSELECT...FORは使えない
-	// 			// ERROR: FOR UPDATE is not allowed with aggregate functions (SQLSTATE 0A000)
-	// 			{Query: "SELECT id FROM foo WHERE id < 3 FOR SHARE", WantOK: newNullInts(1), WantNG: newNullInts(1, 2)},
-	// 			{Query: "COMMIT"},
-	// 		},
-	// 	},
-	// 	Threshold: map[string]string{
-	// 		MYSQL: SERIALIZABLE, // SELECT ... FOR SHAREはREPEATABLE_READでもスナップショットを読まないのでファントムが現れる
-	// 		"*":   REPEATABLE_READ,
-	// 	},
-	// 	WantStarts: map[string][]string{"*": genSeq(3, 4)},
-	// 	WantEnds: map[string][]string{
-	// 		MYSQL + ":" + SERIALIZABLE: {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-	// 		"*":                        genSeq(3, 4),
-	// 	},
-	// 	Skip: map[string]bool{
-	// 		REPEATABLE_READ_LOCK: true,
-	// 		SQLSERVER:            true, // doesn't support SELECT ... FOR
-	// 		ORACLE:               true,
-	// 		DB2:                  true,
-	// 		SQLITE:               true, // doesn't support SELECT ... FOR
-	// 	},
-	// },
-	// {
-	// 	Name: "phantom delete",
-	// 	Txs: [][]query{
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "UPDATE foo set value = value + 2"},
-	// 			{},
-	// 			{Query: "COMMIT"},
-	// 		},
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "SELECT id FROM foo WHERE value = 4", Want: newNullInts(3)},
-	// 			{Query: "DELETE FROM foo where value = 4", WantErr: map[string]string{
-	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 			}},
-	// 			{Query: "SELECT id FROM foo WHERE id = 3", WantOK: newNullInts(), WantNG: newNullInts(3)},
-	// 			{Query: "COMMIT"},
-	// 		},
-	// 	},
-	// 	Threshold: map[string]string{
-	// 		"*": SERIALIZABLE,
-	// 	},
-	// 	AdditionalOk: map[string][]string{
-	// 		POSTGRES: {REPEATABLE_READ},
-	// 		MYSQL:    {REPEATABLE_READ_LOCK},
-	// 	},
-	// 	WantStarts: map[string][]string{
-	// 		REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 3),
-	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 3),
-	// 		MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-	// 		"*":                              genSeq(4, 5),
-	// 	},
-	// 	WantEnds: map[string][]string{
-	// 		READ_COMMITTED:                   {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-	// 		REPEATABLE_READ_LOCK:             {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
-	// 		POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
-	// 		POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2"},
-	// 		MYSQL + ":" + REPEATABLE_READ:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4"},
-	// 		MYSQL + ":" + SERIALIZABLE:       {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "b:2", "b:3", "b:4"},
-	// 		// MYSQL + ":" + SERIALIZABLE:         {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-	// 		// SQLSERVER + ":" + SERIALIZABLE:     {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-	// 		// DB2 + ":" + REPEATABLE_READ:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-	// 		// DB2 + ":" + SERIALIZABLE:           {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-	// 		// SQLITE + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "b:2", "b:3", "a:2"}, // INSERT is locked
-	// 		"*": genSeq(4, 5),
-	// 	},
-	// 	Skip: map[string]bool{
-	// 		NO_TRANSACTION:             true,
-	// 		READ_UNCOMMITTED:           true,
-	// 		REPEATABLE_READ_LOCK:       true, // OKだけどwantが変わる
-	// 		MYSQL + ":" + SERIALIZABLE: true, // OKだけどwantが変わる
-	// 		SQLSERVER:                  true, // とりあえず
-	// 		ORACLE:                     true, // とりあえず
-	// 		DB2:                        true, // とりあえず
-	// 	},
-	// },
+
 	{
 		Name: "lost update",
 		Txs: [][]query{
@@ -890,124 +525,6 @@ var specs = []spec{
 			SQLITE + ":" + SERIALIZABLE: true, // "database is locked" won't finish transaction ?
 		},
 	},
-	// {
-	// 	Name: "lost update with locking read",
-	// 	Txs: [][]query{
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(2)},
-	// 			{Query: "UPDATE foo SET value = 20 WHERE id = 1"},
-	// 			{Query: "COMMIT"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
-	// 		},
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1 FOR UPDATE", Want: newNullInts(20), WantErr: map[string]string{
-	// 				// NOTE: 違反してないような気がするんだけど
-	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 				ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
-	// 			}},
-	// 			{Query: "UPDATE foo SET value = 200 WHERE id = 1"},
-	// 			{Query: "COMMIT"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(200)},
-	// 		},
-	// 	},
-	// 	Threshold: map[string]string{
-	// 		"*": READ_UNCOMMITTED, // always OK
-	// 	},
-	// 	WantStarts: map[string][]string{
-	// 		POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},
-	// 		POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                      // same as POSTGRES:REPEATABLE_READ
-	// 		SQLSERVER:                        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4", "b:2", "b:3", "b:4"}, // T2 SELECT is locked
-	// 		ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "a:4"},                      // same as POSTGRES:REPEATABLE_READ
-	// 		"*":                              {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "a:4", "b:3", "b:4"}, // T2 SELECT is locked
-	// 	},
-	// 	WantEnds: map[string][]string{
-	// 		POSTGRES + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"},
-	// 		POSTGRES + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-	// 		ORACLE + ":" + SERIALIZABLE:      {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4"}, // same as POSTGRES:REPEATABLE_READ
-	// 		"*":                              {"a:0", "b:0", "a:1", "a:2", "a:3", "b:1", "a:4", "b:2", "b:3", "b:4"},
-	// 	},
-	// 	Skip: map[string]bool{
-	// 		REPEATABLE_READ_LOCK:             true,
-	// 		POSTGRES + ":" + NO_TRANSACTION:  true,
-	// 		MYSQL + ":" + NO_TRANSACTION:     true,
-	// 		SQLSERVER + ":" + NO_TRANSACTION: true,
-	// 		SQLSERVER + ":" + SNAPSHOT:       true, // FIXME: mssql: The COMMIT TRANSACTION request has no corresponding BEGIN TRANSACTION.
-	// 		ORACLE + ":" + NO_TRANSACTION:    true,
-	// 		DB2:                              true,
-	// 		SQLITE:                           true, // doesn't support SELECT ... FOR
-	// 	},
-	// },
-	// {
-	// 	// https://pmg.csail.mit.edu/papers/adya-phd.pdf
-	// 	// Atul Adya: “Weak Consistency"ではT1のSELECTのあとT2のSELECTになっている
-	// 	// でもそれだとCSでもロックしない？
-	// 	Name: "G-cursor",
-	// 	Txs: [][]query{
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(2)},
-	// 			{Query: "UPDATE foo SET value = 12 WHERE id = 1"}, // x = x + 10
-	// 			{Query: "COMMIT"},
-	// 			// {Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(20)},
-	// 		},
-	// 		{
-	// 			{Query: "BEGIN"},
-	// 			{},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1", WantOK: newNullInts(12), WantNG: newNullInts(2)},
-	// 			{Query: "UPDATE foo SET value = 112 WHERE id = 1", WantErr: map[string]string{
-	// 				// NOTE: 違反してないような気がするんだけど
-	// 				POSTGRES + ":" + REPEATABLE_READ: "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 				POSTGRES + ":" + SERIALIZABLE:    "ERROR: could not serialize access due to concurrent update (SQLSTATE 40001)",
-	// 				SQLSERVER + ":" + SNAPSHOT:       "mssql: Snapshot isolation transaction aborted due to update conflict. You cannot use snapshot isolation to access table 'dbo.foo' directly or indirectly in database 'test2' to update, delete, or insert the row that has been modified or deleted by another transaction. Retry the transaction or change the isolation level for the update/delete statement.",
-	// 				ORACLE + ":" + SERIALIZABLE:      "ORA-08177: can't serialize access for this transaction\n",
-	// 			}}, // x = x + 100
-	// 			{Query: "COMMIT"},
-	// 			{Query: "SELECT value FROM foo WHERE id = 1", Want: newNullInts(112)},
-	// 		},
-	// 	},
-	// 	Threshold: map[string]string{
-	// 		POSTGRES: REPEATABLE_READ,
-	// 		DB2:      CURSOR_STABILITY,
-	// 		"*":      SERIALIZABLE,
-	// 	},
-	// 	AdditionalOk: map[string][]string{
-	// 		SQLSERVER: {READ_COMMITTED, REPEATABLE_READ},
-	// 	},
-	// 	WantStarts: map[string][]string{
-	// 		POSTGRES + ":" + REPEATABLE_READ: genSeq(4, 4),
-	// 		POSTGRES + ":" + SERIALIZABLE:    genSeq(4, 4),
-	// 		SQLSERVER + ":" + SNAPSHOT:       genSeq(4, 4),
-	// 		ORACLE + ":" + SERIALIZABLE:      genSeq(4, 4),
-	// 		"*":                              genSeq(4, 6),
-	// 	},
-	// 	WantEnds: map[string][]string{
-	// 		POSTGRES + ":" + REPEATABLE_READ:  genSeq(4, 4),
-	// 		POSTGRES + ":" + SERIALIZABLE:     genSeq(4, 4),
-	// 		MYSQL + ":" + SERIALIZABLE:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		SQLSERVER + ":" + READ_COMMITTED:  {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		SQLSERVER + ":" + REPEATABLE_READ: {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		SQLSERVER + ":" + SNAPSHOT:        genSeq(4, 4),
-	// 		SQLSERVER + ":" + SERIALIZABLE:    {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		ORACLE + ":" + SERIALIZABLE:       genSeq(4, 4),
-	// 		DB2 + ":" + CURSOR_STABILITY:      {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		DB2 + ":" + READ_STABILITY:        {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		DB2 + ":" + REPEATABLE_READ:       {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		DB2 + ":" + SERIALIZABLE:          {"a:0", "b:0", "a:1", "b:1", "a:2", "a:3", "b:2", "b:3", "b:4", "b:5"},
-	// 		"*":                               genSeq(4, 6),
-	// 	},
-	// 	Skip: map[string]bool{
-	// 		NO_TRANSACTION:                   true, // NGだけど値はOKになってしまう
-	// 		READ_UNCOMMITTED:                 true, // NGだけど値はOKになってしまう
-	// 		REPEATABLE_READ_LOCK:             true, // とりあえず
-	// 		POSTGRES + ":" + REPEATABLE_READ: true, // OKだけど値はOKじゃない
-	// 		POSTGRES + ":" + SERIALIZABLE:    true, // OKだけど値はOKじゃない
-	// 		ORACLE + ":" + SERIALIZABLE:      true, // OKだけど値はOKじゃない
-	// 		SQLITE:                           true, // doesn't support SELECT ... FOR
-	// 	},
-	// },
 
 	{
 		Name: "write skew",
@@ -1227,31 +744,6 @@ func Test(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer conn.Close()
-
-			// _, err = conn.ExecContext(ctx, "DROP DATABASE IF EXISTS test")
-			// if err != nil {
-			// 	t.Fatal(err)
-			// }
-			// _, err = conn.ExecContext(ctx, "CREATE DATABASE test")
-			// if err != nil {
-			// 	t.Fatal(err)
-			// }
-			// _, err = conn.ExecContext(ctx, "USE test")
-			// if err != nil {
-			// 	t.Fatal(err)
-			// }
-			// if tt.database == SQLSERVER {
-			// 	v := "OFF"
-			// 	if tt.level == READ_COMMITTED_SNAPSHOT {
-			// 		v = "ON"
-			// 	}
-			// 	sql := fmt.Sprintf("ALTER DATABASE test SET READ_COMMITTED_SNAPSHOT %s", v)
-			// 	fmt.Println(sql)
-			// 	_, err = conn.ExecContext(ctx, sql)
-			// 	if err != nil {
-			// 		t.Fatal(err)
-			// 	}
-			// }
 
 			fmt.Println("DROP TABLE foo")
 			_, _ = conn.ExecContext(ctx, "DROP TABLE foo")
