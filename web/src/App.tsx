@@ -369,11 +369,10 @@ function App() {
         </div>
       </div>
       <div className="max-w-8xl mx-auto px-8 py-4">
-        <div className="m-4 p-4 rounded-lg bg-slate-100">
+        <div className="m-4 p-4 rounded-lg bg-slate-100 leading-loose">
           <p>
-            このページでは各種データベースのトランザクション分離レベルの挙動をまとめています。
-          </p>
-          <p>
+            このページでは各種データベースのトランザクション分離レベルの挙動を自動テストした結果をまとめています。
+            <br />
             詳細を解説した書籍「
             <a
               className="underline"
@@ -383,6 +382,23 @@ function App() {
               トランザクション分離レベル整理チャレンジ）
             </a>
             」を技術書典14にて販売中。
+          </p>
+          <p className="mt-8">
+            検証環境:{" "}
+            <a
+              className="underline font-mono"
+              href="https://github.com/yokomotod/isolation-test/blob/main/docker-compose.yaml"
+            >
+              docker-compose.yaml
+            </a>
+            <br />
+            自動テスト:{" "}
+            <a
+              className="underline font-mono"
+              href="https://github.com/yokomotod/isolation-test/blob/main/test/isolation_test.go"
+            >
+              isolation_test.go
+            </a>
           </p>
         </div>
         <div className="p-2 flex space-x-2">
