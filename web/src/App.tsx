@@ -346,11 +346,6 @@ function App() {
     level: string;
     spec: Spec;
   } | null>(null);
-
-  const [levelChecks, setLevelChecks] = useState<readonly boolean[]>(
-    Array(levels.length).fill(false)
-  );
-
   const [shouldFilter, setShouldFilter] = useState(false);
   const [checks, setChecks] = useState(new Set<string>());
 
@@ -409,13 +404,6 @@ function App() {
           </thead>
           <tbody>
             {orderedRows.map(({ database, level }) => {
-              if (
-                levelChecks.includes(true) &&
-                !levelChecks[(levels as readonly string[]).indexOf(level)]
-              ) {
-                return null;
-              }
-
               const levelName = (
                 getValue(dbLevels, database) as Record<string, string>
               )[level];
