@@ -1,6 +1,6 @@
 import "./App.css";
 import specs from "../../test/specs.json";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { ReactComponent as GitHubMark } from "./github-mark.svg";
 
 const POSTGRES = "postgres";
@@ -61,48 +61,74 @@ const levelInt: Record<string, number> = {
 
 const dbLevels = {
   [POSTGRES]: {
-    [READ_UNCOMMITTED]: [READ_UNCOMMITTED, <br />, `(${READ_COMMITTED} alias)`],
-    [READ_COMMITTED]: READ_COMMITTED,
-    [REPEATABLE_READ]: REPEATABLE_READ,
-    [SERIALIZABLE]: SERIALIZABLE,
+    [READ_UNCOMMITTED]: [
+      <span className="font-mono">READ_UNCOMMITTED</span>,
+      <br />,
+      "(",
+      <span className="font-mono">READ_COMMITTED</span>,
+      " alias)",
+    ],
+    [READ_COMMITTED]: <span className="font-mono">READ_COMMITTED</span>,
+    [REPEATABLE_READ]: <span className="font-mono">REPEATABLE_READ</span>,
+    [SERIALIZABLE]: <span className="font-mono">SERIALIZABLE</span>,
   },
   [SQLSERVER]: {
-    [READ_UNCOMMITTED]: READ_UNCOMMITTED,
-    [READ_COMMITTED]: READ_COMMITTED,
-    [READ_COMMITTED_SNAPSHOT]: `${READ_COMMITTED} (SNAPSHOT)`,
-    [REPEATABLE_READ]: REPEATABLE_READ,
-    [SNAPSHOT]: SNAPSHOT,
-    [SERIALIZABLE]: SERIALIZABLE,
+    [READ_UNCOMMITTED]: <span className="font-mono">READ_UNCOMMITTED</span>,
+    [READ_COMMITTED]: <span className="font-mono">READ_COMMITTED</span>,
+    [READ_COMMITTED_SNAPSHOT]: [
+      <span className="font-mono">READ_COMMITTED</span>,
+      " (SNAPSHOT)",
+    ],
+    [REPEATABLE_READ]: <span className="font-mono">REPEATABLE_READ</span>,
+    [SNAPSHOT]: <span className="font-mono">SNAPSHOT</span>,
+    [SERIALIZABLE]: <span className="font-mono">SERIALIZABLE</span>,
   },
   [ORACLE]: {
-    [READ_COMMITTED]: READ_COMMITTED,
-    [SERIALIZABLE]: SERIALIZABLE,
+    [READ_COMMITTED]: <span className="font-mono">READ_COMMITTED</span>,
+    [SERIALIZABLE]: <span className="font-mono">SERIALIZABLE</span>,
   },
   [DB2]: {
     [READ_UNCOMMITTED]: [
-      "UR(Uncommitted read)",
+      <span className="font-mono">UR</span>,
+      "(Uncommitted read)",
       <br />,
-      READ_UNCOMMITTED,
+      <span className="font-mono">READ_UNCOMMITTED</span>,
       <br />,
-      "DIRTY READ",
+      <span className="font-mono">DIRTY READ</span>,
     ],
     [READ_COMMITTED]: [
-      "CS",
+      <span className="font-mono">CS</span>,
       <br />,
-      "CURSOR STABILITY",
+      <span className="font-mono">CURSOR STABILITY</span>,
       <br />,
-      READ_COMMITTED,
+      <span className="font-mono">READ_COMMITTED</span>,
     ],
-    [CURSOR_STABILITY]: CURSOR_STABILITY,
+    [CURSOR_STABILITY]: [
+      <span className="font-mono">CURSOR_STABILITY</span>,
+      <br />,
+      "(",
+      <span className="font-mono">cur_commit=DISABLED</span>,
+      ")",
+    ],
     [READ_STABILITY]: `RS(Read stability)`,
-    [REPEATABLE_READ]: ["RR", <br />, REPEATABLE_READ],
-    [SERIALIZABLE]: `${SERIALIZABLE}/(RR alias)`,
+    [REPEATABLE_READ]: [
+      <span className="font-mono">RR</span>,
+      <br />,
+      <span className="font-mono">REPEATABLE_READ</span>,
+    ],
+    [SERIALIZABLE]: [
+      <span className="font-mono">SERIALIZABLE</span>,
+      <br />,
+      "(",
+      <span className="font-mono">RR</span>,
+      " alias)",
+    ],
   },
   "*": {
-    [READ_UNCOMMITTED]: READ_UNCOMMITTED,
-    [READ_COMMITTED]: READ_COMMITTED,
-    [REPEATABLE_READ]: REPEATABLE_READ,
-    [SERIALIZABLE]: SERIALIZABLE,
+    [READ_UNCOMMITTED]: <span className="font-mono">READ_UNCOMMITTED</span>,
+    [READ_COMMITTED]: <span className="font-mono">READ_COMMITTED</span>,
+    [REPEATABLE_READ]: <span className="font-mono">REPEATABLE_READ</span>,
+    [SERIALIZABLE]: <span className="font-mono">SERIALIZABLE</span>,
   },
 };
 
@@ -373,6 +399,8 @@ function App() {
           <p>
             このページでは各種データベースのトランザクション分離レベルの挙動を自動テストした結果をまとめています。
             <br />
+            セルをクリックするとSQLが表示されます。
+            <br />
             詳細を解説した書籍「
             <a
               className="underline"
@@ -424,7 +452,7 @@ function App() {
               <th className="border border-slate-300 p-4" />
               <th className="border border-slate-300 p-4">データベース</th>
               <th className="border border-slate-300 p-4">
-                設定値 (★:デフォルト)
+                設定値 (★=デフォルト)
               </th>
               <th className="border border-slate-300 p-4">モデル</th>
               {orderedSpecs.map((spec) => (
@@ -437,7 +465,7 @@ function App() {
           <tbody>
             {orderedRows.map(({ database, level }) => {
               const levelName = (
-                getValue(dbLevels, database) as Record<string, string>
+                getValue(dbLevels, database) as Record<string, ReactNode>
               )[level];
               const isDefault = defaultLevel[database] == level;
 
