@@ -18,6 +18,7 @@ require (
 )
 
 require (
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/ibmdb/go_ibm_db v0.4.3
 	github.com/jackc/pgx/v5 v5.0.4
 	github.com/mattn/go-sqlite3 v1.14.16

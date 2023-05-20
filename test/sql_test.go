@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/ibmdb/go_ibm_db"
-	_ "github.com/jackc/pgx/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/microsoft/go-mssqldb"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -70,7 +71,6 @@ var dbLevels = map[string][]string{
 		READ_UNCOMMITTED,
 		READ_COMMITTED,
 		REPEATABLE_READ,
-		// REPEATABLE_READ_LOCK,
 		SERIALIZABLE,
 	},
 }
