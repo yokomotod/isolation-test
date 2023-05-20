@@ -369,6 +369,22 @@ function App() {
         </div>
       </div>
       <div className="max-w-8xl mx-auto px-8 py-4">
+        <div className="m-4 p-4 rounded-lg bg-slate-100">
+          <p>
+            このページでは各種データベースのトランザクション分離レベルの挙動をまとめています。
+          </p>
+          <p>
+            詳細を解説した書籍「
+            <a
+              className="underline"
+              href="https://techbookfest.org/product/tmLVHg8ZgbUMGCrB3guW7G"
+            >
+              エムスリーテックブック4（第5章
+              トランザクション分離レベル整理チャレンジ）
+            </a>
+            」を技術書典14にて販売中。
+          </p>
+        </div>
         <div className="p-2 flex space-x-2">
           <button
             className="px-2 py-1 font-semibold text-sm text-slate-700 rounded-md ring-1 disabled:opacity-75"
