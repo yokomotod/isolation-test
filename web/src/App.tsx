@@ -1,7 +1,6 @@
 import "./App.css";
 import specs from "../../test/specs.json";
 import { useState } from "react";
-import { useEffect } from "react";
 import { ReactComponent as GitHubMark } from "./github-mark.svg";
 
 const POSTGRES = "postgres";
@@ -32,7 +31,6 @@ const READ_COMMITTED_SNAPSHOT = "READ COMMITTED SNAPSHOT";
 const CURSOR_STABILITY = "CURSOR STABILITY";
 const READ_STABILITY = "RS";
 const REPEATABLE_READ = "REPEATABLE READ";
-// const REPEATABLE_READ_LOCK = "REPEATABLE READ LOCK";
 const SNAPSHOT = "SNAPSHOT";
 const SERIALIZABLE = "SERIALIZABLE";
 
@@ -44,7 +42,6 @@ const levels = [
   CURSOR_STABILITY,
   READ_STABILITY,
   REPEATABLE_READ,
-  // REPEATABLE_READ_LOCK,
   SNAPSHOT,
   SERIALIZABLE,
 ] as const;
@@ -58,22 +55,18 @@ const levelInt: Record<string, number> = {
   [CURSOR_STABILITY]: 4,
   [READ_STABILITY]: 5,
   [REPEATABLE_READ]: 6,
-  // [REPEATABLE_READ_LOCK]: 6,
   [SNAPSHOT]: 6,
   [SERIALIZABLE]: 7,
 };
 
 const dbLevels = {
   [POSTGRES]: {
-    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: [READ_UNCOMMITTED, <br />, `(${READ_COMMITTED} alias)`],
     [READ_COMMITTED]: READ_COMMITTED,
     [REPEATABLE_READ]: REPEATABLE_READ,
-    // [REPEATABLE_READ_LOCK]: `${REPEATABLE_READ} (LOCK)`,
     [SERIALIZABLE]: SERIALIZABLE,
   },
   [SQLSERVER]: {
-    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: READ_UNCOMMITTED,
     [READ_COMMITTED]: READ_COMMITTED,
     [READ_COMMITTED_SNAPSHOT]: `${READ_COMMITTED} (SNAPSHOT)`,
@@ -82,12 +75,10 @@ const dbLevels = {
     [SERIALIZABLE]: SERIALIZABLE,
   },
   [ORACLE]: {
-    // [NO_TRANSACTION]: "no transaction",
     [READ_COMMITTED]: READ_COMMITTED,
     [SERIALIZABLE]: SERIALIZABLE,
   },
   [DB2]: {
-    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: [
       "UR(Uncommitted read)",
       <br />,
@@ -108,11 +99,9 @@ const dbLevels = {
     [SERIALIZABLE]: `${SERIALIZABLE}/(RR alias)`,
   },
   "*": {
-    // [NO_TRANSACTION]: "no transaction",
     [READ_UNCOMMITTED]: READ_UNCOMMITTED,
     [READ_COMMITTED]: READ_COMMITTED,
     [REPEATABLE_READ]: REPEATABLE_READ,
-    // [REPEATABLE_READ_LOCK]: `${REPEATABLE_READ} (LOCK)`,
     [SERIALIZABLE]: SERIALIZABLE,
   },
 };
@@ -133,62 +122,17 @@ const dbNames: Record<string, string> = {
   [DB2]: "IBM Db2",
 };
 
-// TODO: "Read Committed" ほしい
-// TODO: "Cursor Stability" ほしい
 const models: Record<string, Record<string, React.ReactNode>> = {
-  // [POSTGRES]: {
-  //   [READ_UNCOMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-  //   [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-  //   [REPEATABLE_READ]: ["Snapshot Isolation"],
-  //   [SERIALIZABLE]: ["Serializable Snapshot Isolation"],
-  // },
-  // [MYSQL]: {
-  //   [READ_UNCOMMITTED]: ["Read Uncommitted"],
-  //   [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-  //   [REPEATABLE_READ]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-  //   [SERIALIZABLE]: ["Serializable"],
-  // },
-  // [SQLSERVER]: {
-  //   [READ_UNCOMMITTED]: ["Read Uncommitted"],
-  //   [READ_COMMITTED]: ["Monotonic Atomic View?", <br />, "Monotonic View?"],
-  //   [READ_COMMITTED_SNAPSHOT]: [
-  //     "Monotonic Atomic View?",
-  //     <br />,
-  //     "Monotonic View?",
-  //   ],
-  //   [REPEATABLE_READ]: ["Repeatable Read"],
-  //   [SNAPSHOT]: ["Snapshot Isolation"],
-  //   [SERIALIZABLE]: ["Serializable"],
-  // },
-  // [ORACLE]: {
-  //   [READ_COMMITTED]: [
-  //     "Monotonic Atomic View?",
-  //     <br />,
-  //     "Monotonic View?",
-  //     <br />,
-  //     "Monotonic Snapshot Reads?",
-  //   ],
-  //   [SERIALIZABLE]: ["Snapshot Isolation"],
-  // },
-  // [DB2]: {
-  //   [READ_UNCOMMITTED]: ["Read Uncommitted?"],
-  //   [READ_COMMITTED]: ["Read Committed?", <br />, "Cursor Stability?"],
-  //   [READ_STABILITY]: ["Repeatable Read?"],
-  //   [REPEATABLE_READ]: ["Serializable?"],
-  //   [SERIALIZABLE]: ["Serializable?"],
-  // },
   [POSTGRES]: {
     [READ_UNCOMMITTED]: "Read Committed (MVCC)",
     [READ_COMMITTED]: "Read Committed (MVCC)",
     [REPEATABLE_READ]: "Snapshot Isolation",
-    // [REPEATABLE_READ_LOCK]: "Snapshot Isolation",
     [SERIALIZABLE]: "Serializable (MVCC)",
   },
   [MYSQL]: {
     [READ_UNCOMMITTED]: "Read Uncommitted",
     [READ_COMMITTED]: "Read Committed (MVCC)",
     [REPEATABLE_READ]: "Snapshot Isolation",
-    // [REPEATABLE_READ_LOCK]: "Read Committed (Gap Locking)",
     [SERIALIZABLE]: "Serializable (Locking)",
   },
   [SQLSERVER]: {
@@ -214,28 +158,11 @@ const models: Record<string, Record<string, React.ReactNode>> = {
 };
 
 const orderedSpecs: typeof specs = [];
-// orderedSpecs.push(specs.find(({ name }) => name === "dirty write")!);
 orderedSpecs.push(specs.find(({ name }) => name === "dirty read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "fuzzy read")!);
 orderedSpecs.push(specs.find(({ name }) => name === "phantom read")!);
-// orderedSpecs.push(specs.find(({ name }) => name === "phantom delete")!);
 orderedSpecs.push(specs.find(({ name }) => name === "lost update")!);
 orderedSpecs.push(specs.find(({ name }) => name === "write skew")!);
-// orderedSpecs.push(
-//   specs.find(({ name }) => name === "fuzzy read with locking read")!
-// );
-// orderedSpecs.push(
-//   specs.find(({ name }) => name === "phantom read with locking read")!
-// );
-// orderedSpecs.push(
-//   specs.find(({ name }) => name === "lost update with locking read")!
-// );
-// orderedSpecs.push(specs.find(({ name }) => name === "G-cursor")!);
-// if (orderedSpecs.length !== specs.length) {
-//   throw new Error(
-//     `orderedSpecs.length !== specs.length: ${orderedSpecs.length}, ${specs.length}`
-//   );
-// }
 
 const rows: { database: Database; level: string }[] = [];
 for (const database of databases) {
@@ -295,7 +222,6 @@ if (orderedRows.length !== rows.length) {
     `orderedRows.length !== rows.length: ${orderedRows.length}, ${rows.length}`
   );
 }
-// orderedRows.splice(0, orderedRows.length, ...rows);
 
 type Tx = {
   query: string;
@@ -319,72 +245,37 @@ function convertTxs(
   wantStarts: string[],
   wantEnds: string[]
 ): (Partial<Tx & { rowspan: number }> | null)[][] {
-  // const m = spec.txs.length;
-  // const n = Math.max(...txs.map((queries) => queries.length));
-  // const rows = [];
-  // for (let i = 0; i < n; i++) {
-  //   for (let j = 0; j < m; j++) {
-  //     if (!txs[j][i]?.query) {
-  //       continue;
-  //     }
-
-  //     const cols = [];
-  //     cols.push(...new Array(j));
-  //     cols.push(txs[j][i]);
-  //     cols.push(...new Array(m - 1 - j));
-  //     rows.push(cols);
-  //   }
-  // }
-
-  // return rows;
-
   const txIndex: Record<string, number> = { a: 0, b: 1 };
-  // const nTx = Object.keys(txIndex).length;
 
   const n = Math.max(wantStarts.length, wantEnds.length);
   const rows = [];
   const isWaiting: Record<string, boolean> = { a: false, b: false };
   for (let i = 0; i < n; i++) {
-    // console.log("------------");
-    // console.log(`end: ${wantEnds[i]}, ${isWaiting}`);
     const [tx, startIdxStr] = wantStarts[i].split(":");
     const [endTx] = wantEnds[i].split(":");
 
     const txId = txIndex[tx];
     const startIndex = Number(startIdxStr);
-    // const endIndex = Number(endIdxStr);
-
-    // if (!txs[startTxId][startIndex]?.query) {
-    //   continue;
-    // }
 
     const endPosition = wantEnds.indexOf(wantStarts[i]);
     if (endPosition > i) {
       isWaiting[tx] = true;
     }
 
-    // console.log(isWaiting);
     const cols = [];
     if (tx === "b") {
       if (!isWaiting["a"]) {
-        // console.log(`padding a`);
         cols.push({});
       } else {
         cols.push(null);
       }
     }
-    // console.log(
-    //   `${wantStarts[i]} ${txs[txId][startIndex].query} rowspan=${
-    //     endPosition - i + 1
-    //   }`
-    // );
     cols.push({
       ...txs[txId][startIndex],
       rowspan: isWaiting[tx] ? endPosition - i + 2 : 1,
     });
     if (tx === "a") {
       if (!isWaiting["b"]) {
-        // console.log(`padding b`);
         cols.push({});
       } else {
         cols.push(null);
@@ -394,7 +285,6 @@ function convertTxs(
     rows.push(cols);
 
     if (isWaiting[endTx]) {
-      // console.log("WAIT END: " + wantEnds[i]);
       rows.push([{}]);
 
       isWaiting[endTx] = false;
@@ -464,9 +354,6 @@ function App() {
   const [shouldFilter, setShouldFilter] = useState(false);
   const [checks, setChecks] = useState(new Set<string>());
 
-  let currentRow: { database: string; level: string } | undefined;
-  let prevRow: { database: string; level: string } | undefined;
-
   return (
     <div className="antialiased text-slate-700 xdark:text-slate-400 bg-white xdark:bg-slate-900">
       <div className="sticky top-0 bg-white border-b border-slate-900/10">
@@ -486,7 +373,6 @@ function App() {
           </div>
         </div>
       </div>
-      {/* <CheckBoxes items={levels} onChange={setLevelChecks} /> */}
       <div className="max-w-8xl mx-auto px-8 py-4">
         <div className="p-2 flex space-x-2">
           <button
@@ -530,9 +416,6 @@ function App() {
                 return null;
               }
 
-              prevRow = currentRow;
-              currentRow = { database, level };
-
               const levelName = (
                 getValue(dbLevels, database) as Record<string, string>
               )[level];
@@ -544,16 +427,7 @@ function App() {
               }
 
               return (
-                <tr
-                  key={key}
-                  // className={
-                  //   prevRow &&
-                  //   models[prevRow.database][prevRow.level] !=
-                  //     models[database][level]
-                  //     ? "border-top-2"
-                  //     : undefined
-                  // }
-                >
+                <tr key={key}>
                   <td className="border border-slate-300 p-4">
                     <input
                       type="checkbox"
@@ -616,19 +490,6 @@ function App() {
                       <td
                         className="border border-slate-300 hover:border-4"
                         key={spec.name}
-                        // style={{
-                        //   backgroundColor: skip
-                        //     ? "lightgray"
-                        //     : ok
-                        //     ? deadLocked
-                        //       ? "purple"
-                        //       : aborted
-                        //       ? "yellow"
-                        //       : locked
-                        //       ? "teal"
-                        //       : "lime"
-                        //     : "red",
-                        // }}
                       >
                         {skip ? (
                           "n/a"
@@ -669,39 +530,6 @@ function App() {
   );
 }
 
-const CheckBoxes: React.FC<{
-  items: readonly string[];
-  labels?: Record<string, string>;
-  onChange: (checks: readonly boolean[]) => void;
-}> = ({ items, labels, onChange }) => {
-  const [checks, setChecks] = useState(
-    Array<boolean>(items.length).fill(false)
-  );
-
-  useEffect(() => {
-    onChange(checks);
-  }, [checks]);
-
-  return (
-    <div>
-      {items.map((item, i) => (
-        <label>
-          <input
-            type="checkbox"
-            onChange={() =>
-              setChecks((prev) => {
-                prev[i] = !prev[i];
-                return [...prev];
-              })
-            }
-          />
-          {labels ? labels[item] : item}
-        </label>
-      ))}
-    </div>
-  );
-};
-
 const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
   database,
   level,
@@ -733,13 +561,6 @@ const Anomaly: React.FC<{ database: string; level: string } & Spec> = ({
         {dbNames[database]} - {level} - {name}: {ok ? "OK" : "NG"}
       </h2>
       <div id={`${database}-${level}-${name}`}>
-        {/* <div>threshold: {JSON.stringify(threshold)}</div>
-          <div>wantStarts: {JSON.stringify(wantStarts)}</div>
-          <div>wantEnds: {JSON.stringify(wantEnds)}</div>
-          <div>
-            wantStarts: {getValue(wantStarts, database, level).join(", ")}
-          </div>
-          <div>wantEnds: {getValue(wantEnds, database, level).join(", ")}</div> */}
         <table className="w-full border border-slate-400">
           <thead>
             <tr>
@@ -835,8 +656,7 @@ const Row: React.FC<{
                 <span
                   style={
                     ok
-                      ? // ? { color: "green" }
-                        undefined
+                      ? undefined
                       : {
                           textDecorationLine: "line-through",
                         }
@@ -851,8 +671,7 @@ const Row: React.FC<{
                       ? {
                           textDecorationLine: "line-through",
                         }
-                      : // : { color: "red" }
-                        undefined
+                      : undefined
                   }
                 >
                   ×: {wantNg.map((want) => want.Int64).join(", ")}
